@@ -1,7 +1,5 @@
-import fs from "fs/promises";
-import path from "path";
 import { requireUser } from "@/lib/auth";
-import { imagesDir } from "@/lib/env";
+import { getFile } from "@/lib/storage";
 
 type Ctx = { params: Promise<{ name: string }> };
 
@@ -12,12 +10,9 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (!/^[a-z0-9\-_.]+\.png$/i.test(name)) {
     return Response.json({ error: "Ongeldige naam" }, { status: 400 });
   }
-  try {
-    const buf = await fs.readFile(path.join(imagesDir(), name));
-    return new Response(new Uint8Array(buf), {
-      headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=31536000" },
-    });
-  } catch {
-    return Response.json({ error: "Niet gevonden" }, { status: 404 });
-  }
+  const buf = await getFile(`images/${name}`);
+  if (!buf) return Response.json({ error: "Niet gevonden" }, { status: 404 });
+  return new Response(new Uint8Array(buf), {
+    headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=31536000" },
+  });
 }

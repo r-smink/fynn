@@ -1,3 +1,4 @@
+import os from "os";
 import path from "path";
 
 export const env = {
@@ -24,10 +25,7 @@ export const env = {
   },
 };
 
+/** Scratch dir for git clones; only lives for the duration of a sync. */
 export function repoDir(sourceId: string) {
-  return path.join(env.dataDir, "repos", sourceId);
-}
-
-export function imagesDir() {
-  return path.join(env.dataDir, "images");
+  return path.join(os.tmpdir(), "fynn-repos", sourceId);
 }

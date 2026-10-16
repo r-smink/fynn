@@ -1,9 +1,7 @@
-import fs from "fs/promises";
-import path from "path";
 import crypto from "crypto";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
+import { putFile } from "@/lib/storage";
 import { syncSource } from "@/lib/rag/ingest";
 
 export const maxDuration = 300;
@@ -19,17 +17,15 @@ export async function POST(req: Request) {
   const name = (form.get("name") as string) || file?.name;
   if (!file || !name) return Response.json({ error: "file is vereist" }, { status: 400 });
 
-  const dir = path.join(env.dataDir, "uploads");
-  await fs.mkdir(dir, { recursive: true });
   const safe = `${crypto.randomBytes(4).toString("hex")}-${file.name.replace(/[^a-z0-9.\-_]/gi, "_")}`;
-  const fp = path.join(dir, safe);
-  await fs.writeFile(fp, Buffer.from(await file.arrayBuffer()));
+  const storageKey = `uploads/${safe}`;
+  await putFile(storageKey, new Uint8Array(await file.arrayBuffer()), file.type || "text/plain");
 
   const source = await db.knowledgeSource.create({
     data: {
       name,
       type: "file",
-      config: JSON.stringify({ localPath: fp }),
+      config: JSON.stringify({ storageKey, filename: file.name }),
       brandId,
     },
   });

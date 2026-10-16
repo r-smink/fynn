@@ -5,12 +5,32 @@ services:
       - "3000:3000"
     env_file: .env
     environment:
-      DATABASE_URL: "file:./data/fynn.db"
+      DATABASE_URL: "postgresql://fynn:fynn@db:5432/fynn"
       FYNN_DATA_DIR: "/app/data"
       NEXTAUTH_URL: "https://fynn.fyndable.ai"
     volumes:
       - fynn-data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: fynn
+      POSTGRES_PASSWORD: fynn
+      POSTGRES_DB: fynn
+    ports:
+      - "5432:5432"
+    volumes:
+      - fynn-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fynn"]
+      interval: 5s
+      retries: 10
     restart: unless-stopped
 
 volumes:
   fynn-data:
+  fynn-pg:

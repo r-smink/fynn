@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
@@ -102,6 +102,7 @@ model KnowledgeSource {
   chunkCount Int              @default(0)
   createdAt  DateTime         @default(now())
   chunks     KnowledgeChunk[]
+  repoFiles  RepoFile[]
   agents     Agent[]
 
   @@index([brandId])
@@ -118,6 +119,16 @@ model KnowledgeChunk {
   createdAt DateTime        @default(now())
 
   @@index([sourceId])
+}
+
+model RepoFile {
+  id       String          @id @default(cuid())
+  sourceId String
+  source   KnowledgeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  path     String
+  content  String
+
+  @@unique([sourceId, path])
 }
 
 model ModelEntry {

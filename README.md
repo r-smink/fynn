@@ -7,13 +7,14 @@ marketingmateriaal on-brand. Te hosten op `fynn.fyndable.ai` achter login.
 ## Stack
 
 Next.js 16 (App Router, Turbopack) · TypeScript · Vercel AI SDK 7 ·
-@openrouter/ai-sdk-provider · Prisma 7 + SQLite (better-sqlite3 adapter) ·
+@openrouter/ai-sdk-provider · Prisma 7 + PostgreSQL (pg adapter) · Vercel Blob ·
 Auth.js/next-auth v4 (credentials) · Tailwind 4 + shadcn/ui (base-ui) · simple-git.
 
 ## Snelstart (lokaal)
 
 ```bash
 cp .env.example .env          # vul OPENROUTER_API_KEY in
+docker compose up -d db       # Postgres op :5432 (of zet DATABASE_URL naar Neon e.d.)
 npm ci
 npx prisma migrate deploy     # of: migrate dev
 npx prisma db seed            # admin + Fyndable-brand + agents + templates
@@ -30,8 +31,29 @@ docker compose up -d --build          # bouwt + start op :3000
 # of met eigen compose/proxy voor fynn.fyndable.ai + TLS (Caddy/nginx/Traefik)
 ```
 
-`docker run -p 3000:3000 -v fynn-data:/app/data --env-file .env fynn`
-(`RUN_SEED=1` om bij eerste start te seeden.)
+Compose start de app plus een `postgres:17`-service. Losse container:
+`docker run -p 3000:3000 -v fynn-data:/app/data --env-file .env fynn` met `DATABASE_URL`
+naar een bestaande Postgres. (`RUN_SEED=1` om bij eerste start te seeden.)
+
+## Vercel
+
+1. Importeer de repo in Vercel (framework: Next.js, build command standaard).
+2. **Storage → Neon** (Marketplace) koppelen; dit zet `DATABASE_URL`. Gebruik de
+   *pooled* connection string.
+3. **Storage → Blob** koppelen (private store); dit zet `BLOB_READ_WRITE_TOKEN`.
+4. Env vars zetten: `AUTH_SECRET`, `NEXTAUTH_URL` (`https://fynn.fyndable.ai`),
+   `OPENROUTER_API_KEY`, optioneel `FYNDABLE_WP_USER`/`FYNDABLE_WP_APP_PASSWORD`.
+5. Migraties + seed eenmalig vanaf je eigen machine tegen de Neon-database:
+   ```bash
+   DATABASE_URL="<neon-url>" npx prisma migrate deploy
+   DATABASE_URL="<neon-url>" SEED_ADMIN_PASSWORD="<sterk-wachtwoord>" npx prisma db seed
+   ```
+   Draai `migrate deploy` opnieuw na elke nieuwe migratie.
+6. Domein `fynn.fyndable.ai` toevoegen onder Settings → Domains.
+
+Beperkingen op Vercel: git-syncs moeten binnen de max. functieduur passen (Hobby 300 s,
+Pro tot 800 s met Fluid compute); kennisbronnen van type `folder` werken alleen bij
+self-hosting (lokale map).
 
 ## Concepten
 
@@ -55,5 +77,7 @@ portal.fyndable.ai voor live platform-data).
 
 ## Data
 
-`./data/` bevat: `fynn.db` (SQLite), `repos/` (gesyncede git-clones), `uploads/`,
-`images/` (gegenereerde visuals). Mount als volume in productie.
+Alle data staat in Postgres, ook een snapshot van de tekstbestanden van git-bronnen
+(`RepoFile`, voor `repo_search`/`repo_file`); clones zijn tijdelijk (`$TMPDIR/fynn-repos`).
+Uploads en images gaan naar Vercel Blob, of zonder `BLOB_READ_WRITE_TOKEN` naar
+`./data/uploads` en `./data/images` (mount als volume bij self-hosting).

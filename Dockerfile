@@ -5,8 +5,6 @@
 FROM node:24-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-# build tools voor better-sqlite3 als er geen prebuilt is
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 RUN npm ci
 
 FROM node:24-bookworm-slim AS builder
@@ -19,8 +17,8 @@ RUN npx prisma generate && npm run build
 FROM node:24-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
-# git voor repo-sync, tools voor better-sqlite3-fallback
-RUN apt-get update && apt-get install -y --no-install-recommends git python3 make g++ && rm -rf /var/lib/apt/lists/*
+# git voor repo-sync
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
