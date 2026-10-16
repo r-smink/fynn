@@ -1,0 +1,16 @@
+services:
+  fynn:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      DATABASE_URL: "file:./data/fynn.db"
+      FYNN_DATA_DIR: "/app/data"
+      NEXTAUTH_URL: "https://fynn.fyndable.ai"
+    volumes:
+      - fynn-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  fynn-data:

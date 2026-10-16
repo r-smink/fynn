@@ -1,0 +1,37 @@
+import bcrypt from "bcryptjs";
+import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+
+export async function GET() {
+  const admin = await requireAdmin();
+  if (!admin) return Response.json({ error: "Forbidden" }, { status: 403 });
+  const users = await db.user.findMany({
+    select: { id: true, email: true, name: true, role: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return Response.json({ users });
+}
+
+export async function POST(req: Request) {
+  const admin = await requireAdmin();
+  if (!admin) return Response.json({ error: "Forbidden" }, { status: 403 });
+  const { email, name, password, role } = (await req.json()) as {
+    email: string; name: string; password: string; role?: string;
+  };
+  if (!email || !password || !name) {
+    return Response.json({ error: "email, naam en wachtwoord zijn vereist" }, { status: 400 });
+  }
+  const exists = await db.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+  if (exists) return Response.json({ error: "E-mail bestaat al" }, { status: 409 });
+
+  const user = await db.user.create({
+    data: {
+      email: email.toLowerCase().trim(),
+      name,
+      passwordHash: await bcrypt.hash(password, 12),
+      role: role === "admin" ? "admin" : "member",
+    },
+    select: { id: true, email: true, name: true, role: true },
+  });
+  return Response.json({ user }, { status: 201 });
+}

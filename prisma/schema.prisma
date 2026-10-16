@@ -1,0 +1,162 @@
+// FYNN — whitelabel AI chatplatform
+// Prisma 7 + better-sqlite3 driver adapter
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String
+  passwordHash  String
+  role          String         @default("member") // admin | member
+  createdAt     DateTime       @default(now())
+  conversations Conversation[]
+  usage         UsageEvent[]
+}
+
+model Brand {
+  id            String            @id @default(cuid())
+  name          String
+  slug          String            @unique
+  description   String            @default("")
+  logoUrl       String            @default("")
+  websiteUrl    String            @default("")
+  toneOfVoice   String            @default("")
+  theme         String            @default("{}") // JSON: {primary, secondary, gradient, headingFont, bodyFont}
+  isDefault     Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  agents        Agent[]
+  sources       KnowledgeSource[]
+  conversations Conversation[]
+  templates     PromptTemplate[]
+}
+
+model Agent {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  description   String         @default("")
+  icon          String         @default("Bot")
+  color         String         @default("")
+  systemPrompt  String
+  brandId       String?
+  brand         Brand?         @relation(fields: [brandId], references: [id])
+  defaultModel  String         @default("")
+  temperature   Float          @default(0.7)
+  enabledTools  String         @default("[]") // JSON array of tool names
+  isDefault     Boolean        @default(false)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  sources       KnowledgeSource[]
+  conversations Conversation[]
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentId   String?
+  agent     Agent?    @relation(fields: [agentId], references: [id])
+  brandId   String?
+  brand     Brand?    @relation(fields: [brandId], references: [id])
+  model     String    @default("")
+  title     String    @default("Nieuw gesprek")
+  pinned    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+
+  @@index([userId, pinned, updatedAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // user | assistant | system | tool
+  parts          String // JSON-serialized UIMessage parts
+  model          String       @default("")
+  usage          String       @default("{}")
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model KnowledgeSource {
+  id         String           @id @default(cuid())
+  name       String
+  type       String // file | url | sitemap | git | folder
+  config     String           @default("{}") // JSON: {url, repoUrl, branch, globs, localPath, credentialId}
+  brandId    String?
+  brand      Brand?           @relation(fields: [brandId], references: [id])
+  status     String           @default("pending") // pending | syncing | ready | error
+  statusMsg  String           @default("")
+  lastSyncAt DateTime?
+  chunkCount Int              @default(0)
+  createdAt  DateTime         @default(now())
+  chunks     KnowledgeChunk[]
+  agents     Agent[]
+
+  @@index([brandId])
+}
+
+model KnowledgeChunk {
+  id        String          @id @default(cuid())
+  sourceId  String
+  source    KnowledgeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  path      String          @default("") // file path or url of the chunk
+  text      String
+  embedding Bytes // Float32Array little-endian
+  meta      String          @default("{}")
+  createdAt DateTime        @default(now())
+
+  @@index([sourceId])
+}
+
+model ModelEntry {
+  id              String   @id // openrouter model id, e.g. "openai/gpt-5"
+  name            String
+  provider        String   @default("")
+  contextLength   Int      @default(0)
+  promptPrice     Float    @default(0) // USD per 1M tokens
+  completionPrice Float    @default(0) // USD per 1M tokens
+  modality        String   @default("") // e.g. "text+image->text"
+  description     String   @default("")
+  syncedAt        DateTime @default(now())
+}
+
+model PromptTemplate {
+  id        String   @id @default(cuid())
+  title     String
+  category  String   @default("") // linkedin | blog | newsletter | ad | landing | custom
+  prompt    String
+  brandId   String?
+  brand     Brand?   @relation(fields: [brandId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model UsageEvent {
+  id               String   @id @default(cuid())
+  userId           String?
+  user             User?    @relation(fields: [userId], references: [id])
+  conversationId   String   @default("")
+  model            String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  cost             Float    @default(0) // USD
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Setting {
+  key   String @id
+  value String
+}

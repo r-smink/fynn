@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FYNN — whitelabel AI-chatplatform
 
-## Getting Started
+Eigen ChatGPT/Claude-achtige chatinterface voor het Fyndable-team: chat met willekeurige
+OpenRouter-modellen, bouw eigen agents met tools en kennis (RAG), en genereer
+marketingmateriaal on-brand. Te hosten op `fynn.fyndable.ai` achter login.
 
-First, run the development server:
+## Stack
+
+Next.js 16 (App Router, Turbopack) · TypeScript · Vercel AI SDK 7 ·
+@openrouter/ai-sdk-provider · Prisma 7 + SQLite (better-sqlite3 adapter) ·
+Auth.js/next-auth v4 (credentials) · Tailwind 4 + shadcn/ui (base-ui) · simple-git.
+
+## Snelstart (lokaal)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env          # vul OPENROUTER_API_KEY in
+npm ci
+npx prisma migrate deploy     # of: migrate dev
+npx prisma db seed            # admin + Fyndable-brand + agents + templates
+npm run dev                   # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Login: `admin@fynn.local` met het wachtwoord dat de seed print (of zet
+`SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` vóór de eerste seed).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Docker
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+docker compose up -d --build          # bouwt + start op :3000
+# of met eigen compose/proxy voor fynn.fyndable.ai + TLS (Caddy/nginx/Traefik)
+```
 
-## Learn More
+`docker run -p 3000:3000 -v fynn-data:/app/data --env-file .env fynn`
+(`RUN_SEED=1` om bij eerste start te seeden.)
 
-To learn more about Next.js, take a look at the following resources:
+## Concepten
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Brands** (whitelabel): naam, logo, kleur/font-tokens, tone-of-voice, website.
+  Agents en exports nemen de brand over; meerdere brands naast elkaar.
+- **Agents**: system prompt + brand + default model + tool-groepen + kennisbronnen.
+- **Kennisbronnen**: `file`, `url`, `sitemap` (site-crawl), `git` (clone+re-index),
+  `folder` (lokale map met globs). Chunks → embeddings (OpenRouter) → cosine search.
+- **Tools**: `search_knowledge`, `repo_search`/`repo_file`, Fyndable-admin-API
+  (licenties/tenants/usage/revenue/GEO-scan/tickets), `web_search`, `fetch_url`,
+  `generate_image`.
+- **Model-catalogus**: gesynced van `GET openrouter.ai/api/v1/models` (Instellingen →
+  ververs), selector met prijs/context/modaliteit.
+- **Usage**: per-bericht tokens + geschatte kosten → `/usage`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Env
 
-## Deploy on Vercel
+Zie `.env.example`. Belangrijk: `OPENROUTER_API_KEY` (vereist voor chat/embeddings/images),
+`AUTH_SECRET`, `FYNDABLE_WP_USER`+`FYNDABLE_WP_APP_PASSWORD` (WP Application Password op
+portal.fyndable.ai voor live platform-data).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Data
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`./data/` bevat: `fynn.db` (SQLite), `repos/` (gesyncede git-clones), `uploads/`,
+`images/` (gegenereerde visuals). Mount als volume in productie.
