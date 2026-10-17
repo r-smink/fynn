@@ -38,15 +38,16 @@ naar een bestaande Postgres. (`RUN_SEED=1` om bij eerste start te seeden.)
 ## Vercel
 
 1. Importeer de repo in Vercel (framework: Next.js, build command standaard).
-2. **Storage → Neon** (Marketplace) koppelen; dit zet `DATABASE_URL`. Gebruik de
-   *pooled* connection string.
+2. **Storage → Prisma Postgres** (of Neon) koppelen; dit zet `DATABASE_URL`/`POSTGRES_URL`.
+   De `pg`-adapter gebruikt de directe `postgres://`-URL; een `prisma+postgres://`-URL in
+   `DATABASE_URL` wordt automatisch overgeslagen ten gunste van `POSTGRES_URL`.
 3. **Storage → Blob** koppelen (private store); dit zet `BLOB_READ_WRITE_TOKEN`.
 4. Env vars zetten: `AUTH_SECRET`, `NEXTAUTH_URL` (`https://fynn.fyndable.ai`),
    `OPENROUTER_API_KEY`, optioneel `FYNDABLE_WP_USER`/`FYNDABLE_WP_APP_PASSWORD`.
 5. Migraties + seed eenmalig vanaf je eigen machine tegen de Neon-database:
    ```bash
-   DATABASE_URL="<neon-url>" npx prisma migrate deploy
-   DATABASE_URL="<neon-url>" SEED_ADMIN_PASSWORD="<sterk-wachtwoord>" npx prisma db seed
+   DATABASE_URL="<postgres://-url>" npx prisma migrate deploy
+   DATABASE_URL="<postgres://-url>" SEED_ADMIN_PASSWORD="<sterk-wachtwoord>" npx prisma db seed
    ```
    Draai `migrate deploy` opnieuw na elke nieuwe migratie.
 6. Domein `fynn.fyndable.ai` toevoegen onder Settings → Domains.

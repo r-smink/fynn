@@ -2,8 +2,9 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { databaseUrl } from "../lib/database-url";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg({ connectionString: databaseUrl() });
 const db = new PrismaClient({ adapter });
 
 const FYNDABLE_THEME = {
