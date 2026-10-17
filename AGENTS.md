@@ -51,7 +51,7 @@ Whitelabel ChatGPT/Claude-style chatplatform voor het Fyndable-team (zie README.
 
 ## Bekende aandachtspunten
 
-- Knowledge/git-sync draait synchroon in de API-route (maxDuration 600) — bij grote repos kan dit
+- Knowledge/git-sync draait synchroon in de API-route (maxDuration 300 = Vercel Hobby-max) — bij grote repos kan dit
   lang duren; later eventueel queue'en.
 - Embeddings worden als Float32Array-blob (`bytea`) opgeslagen; cosine in JS — prima tot ~50k
   chunks. Later eventueel pgvector.

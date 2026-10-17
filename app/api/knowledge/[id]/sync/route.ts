@@ -3,7 +3,7 @@ import { syncSource } from "@/lib/rag/ingest";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 export async function POST(_req: Request, ctx: Ctx) {
   const admin = await requireAdmin();

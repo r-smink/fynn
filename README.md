@@ -52,8 +52,9 @@ naar een bestaande Postgres. (`RUN_SEED=1` om bij eerste start te seeden.)
    Draai `migrate deploy` opnieuw na elke nieuwe migratie.
 6. Domein `fynn.fyndable.ai` toevoegen onder Settings → Domains.
 
-Beperkingen op Vercel: git-syncs moeten binnen de max. functieduur passen (Hobby 300 s,
-Pro tot 800 s met Fluid compute); kennisbronnen van type `folder` werken alleen bij
+Beperkingen op Vercel: git-syncs moeten binnen de max. functieduur passen (`maxDuration`
+staat op 300 s, het maximum op Hobby; op Pro kun je in `app/api/knowledge/[id]/sync/route.ts`
+tot 800 s gaan); kennisbronnen van type `folder` werken alleen bij
 self-hosting (lokale map).
 
 ## Concepten
