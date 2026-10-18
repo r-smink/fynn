@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import type { UIMessage } from "ai";
 import { requireUser } from "@/lib/auth";
+import { isAdminRole } from "@/lib/roles";
 import { db } from "@/lib/db";
 import { ChatWindow } from "@/components/chat/chat-window";
 
@@ -33,7 +34,7 @@ export default async function ConversationPage({
       initialModel={convo.model}
       agentId={convo.agentId}
       brandId={convo.brandId}
-      isAdmin={user.role === "admin"}
+      isAdmin={isAdminRole(user.role)}
     />
   );
 }

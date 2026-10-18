@@ -11,10 +11,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { isAdminRole } from "@/lib/roles";
 
 type U = { id: string; email: string; name: string; role: string; createdAt: string | Date };
 
-export function UsersAdmin({ users }: { users: U[] }) {
+export function UsersAdmin({ users, canCreateSuperadmin }: { users: U[]; canCreateSuperadmin: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ email: "", name: "", password: "", role: "member" });
@@ -51,7 +52,7 @@ export function UsersAdmin({ users }: { users: U[] }) {
               <TableCell><UserIcon className="h-4 w-4 text-muted-foreground" /></TableCell>
               <TableCell>{u.name}</TableCell>
               <TableCell>{u.email}</TableCell>
-              <TableCell><Badge variant={u.role === "admin" ? "default" : "secondary"}>{u.role}</Badge></TableCell>
+              <TableCell><Badge variant={isAdminRole(u.role) ? "default" : "secondary"}>{u.role}</Badge></TableCell>
               <TableCell className="text-xs">{new Date(u.createdAt).toLocaleDateString("nl-NL")}</TableCell>
             </TableRow>
           ))}
@@ -81,6 +82,7 @@ export function UsersAdmin({ users }: { users: U[] }) {
                 <SelectContent>
                   <SelectItem value="member">member</SelectItem>
                   <SelectItem value="admin">admin</SelectItem>
+                  {canCreateSuperadmin && <SelectItem value="superadmin">superadmin</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isSuperadmin } from "@/lib/roles";
 import { UsersAdmin } from "@/components/admin/users-admin";
 
 export default async function UsersPage() {
@@ -14,7 +15,7 @@ export default async function UsersPage() {
     <div className="h-full overflow-auto p-6">
       <h1 className="mb-1 text-2xl font-bold">Gebruikers</h1>
       <p className="mb-6 text-sm text-muted-foreground">Interne accounts — geen self-signup.</p>
-      <UsersAdmin users={users} />
+      <UsersAdmin users={users} canCreateSuperadmin={isSuperadmin(admin.role)} />
     </div>
   );
 }

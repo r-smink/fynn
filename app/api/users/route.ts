@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { isSuperadmin, type Role } from "@/lib/roles";
 
 export async function GET() {
   const admin = await requireAdmin();
@@ -21,6 +22,9 @@ export async function POST(req: Request) {
   if (!email || !password || !name) {
     return Response.json({ error: "email, naam en wachtwoord zijn vereist" }, { status: 400 });
   }
+  const newRole: Role =
+    role === "superadmin" && isSuperadmin(admin.role) ? "superadmin" : role === "admin" || role === "superadmin" ? "admin" : "member";
+
   const exists = await db.user.findUnique({ where: { email: email.toLowerCase().trim() } });
   if (exists) return Response.json({ error: "E-mail bestaat al" }, { status: 409 });
 
@@ -29,7 +33,7 @@ export async function POST(req: Request) {
       email: email.toLowerCase().trim(),
       name,
       passwordHash: await bcrypt.hash(password, 12),
-      role: role === "admin" ? "admin" : "member",
+      role: newRole,
     },
     select: { id: true, email: true, name: true, role: true },
   });

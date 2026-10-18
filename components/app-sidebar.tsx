@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bot, Building2, Database, FileText, BarChart3, Users,
-  MessageSquarePlus, Settings, LogOut,
+  MessageSquarePlus, MessagesSquare, Settings, LogOut,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConversationList } from "@/components/conversation-list";
 import { Separator } from "@/components/ui/separator";
+import { isAdminRole, isSuperadmin } from "@/lib/roles";
 
 const NAV = [
   { href: "/agents", label: "Agents", icon: Bot },
@@ -20,6 +21,7 @@ const NAV = [
   { href: "/usage", label: "Usage", icon: BarChart3 },
   { href: "/users", label: "Gebruikers", icon: Users, admin: true },
   { href: "/settings", label: "Instellingen", icon: Settings, admin: true },
+  { href: "/all-chats", label: "Alle chats", icon: MessagesSquare, superadmin: true },
 ];
 
 export function AppSidebar({ userName, userRole }: { userName: string; userRole: string }) {
@@ -47,7 +49,7 @@ export function AppSidebar({ userName, userRole }: { userName: string; userRole:
       <Separator />
 
       <nav className="space-y-0.5 px-3 py-2">
-        {NAV.filter((n) => !n.admin || userRole === "admin").map(({ href, label, icon: Icon }) => (
+        {NAV.filter((n) => (!n.admin || isAdminRole(userRole)) && (!n.superadmin || isSuperadmin(userRole))).map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}

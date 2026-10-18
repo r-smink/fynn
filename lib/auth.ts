@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { isAdminRole, isSuperadmin } from "@/lib/roles";
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.AUTH_SECRET,
@@ -54,5 +55,10 @@ export async function requireUser() {
 
 export async function requireAdmin() {
   const user = await requireUser();
-  return user?.role === "admin" ? user : null;
+  return isAdminRole(user?.role) ? user : null;
+}
+
+export async function requireSuperadmin() {
+  const user = await requireUser();
+  return isSuperadmin(user?.role) ? user : null;
 }
