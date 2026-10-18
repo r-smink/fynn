@@ -9,7 +9,6 @@ const nextConfig: NextConfig = {
     "pg",
     "@prisma/client",
     "@prisma/adapter-pg",
-    "simple-git",
   ],
   turbopack: {
     rules: {

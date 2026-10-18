@@ -1,6 +1,8 @@
 import path from "path";
 import fs from "fs/promises";
-import { simpleGit } from "simple-git";
+import nodeFs from "fs";
+import git, { type GitAuth } from "isomorphic-git";
+import http from "isomorphic-git/http/node";
 import { repoDir } from "@/lib/env";
 
 export type GitConfig = {
@@ -13,32 +15,26 @@ export type GitConfig = {
   token?: string;
 };
 
-function authedUrl(config: GitConfig): string {
-  if (!config.token) return config.repoUrl;
-  try {
-    const u = new URL(config.repoUrl);
-    if (u.protocol === "https:" && !u.username) {
-      u.username = config.token.startsWith("ghp_") || config.token.startsWith("github_pat_")
-        ? config.token
-        : "oauth2";
-      if (!u.password) u.password = config.token.startsWith("ghp_") || config.token.startsWith("github_pat_") ? "" : config.token;
-    }
-    return u.toString();
-  } catch {
-    return config.repoUrl;
-  }
+function auth(token: string): GitAuth {
+  if (token.startsWith("ghp_") || token.startsWith("github_pat_")) return { username: token };
+  return { username: "oauth2", password: token };
 }
 
-/** Clone (shallow) or pull a repo into data/repos/<sourceId>. Returns commit sha. */
 /** Fresh shallow clone into a scratch dir (serverless filesystems are ephemeral). Caller removes `dir`. */
 export async function syncRepo(sourceId: string, config: GitConfig): Promise<{ dir: string; sha: string }> {
   const dir = repoDir(sourceId);
   await fs.rm(dir, { recursive: true, force: true });
   await fs.mkdir(path.dirname(dir), { recursive: true });
-  await simpleGit().clone(authedUrl(config), dir, [
-    "--depth", "1",
-    ...(config.branch ? ["--branch", config.branch] : []),
-  ]);
-  const sha = (await simpleGit(dir).revparse(["HEAD"])).trim();
+  await git.clone({
+    fs: nodeFs,
+    http,
+    dir,
+    url: config.repoUrl,
+    ref: config.branch || undefined,
+    singleBranch: true,
+    depth: 1,
+    onAuth: config.token ? () => auth(config.token!) : undefined,
+  });
+  const sha = await git.resolveRef({ fs: nodeFs, dir, ref: "HEAD" });
   return { dir, sha };
 }
