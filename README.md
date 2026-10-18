@@ -8,7 +8,7 @@ marketingmateriaal on-brand. Te hosten op `fynn.fyndable.ai` achter login.
 
 Next.js 16 (App Router, Turbopack) · TypeScript · Vercel AI SDK 7 ·
 @openrouter/ai-sdk-provider · Prisma 7 + PostgreSQL (pg adapter) · Vercel Blob ·
-Auth.js/next-auth v4 (credentials) · Tailwind 4 + shadcn/ui (base-ui) · simple-git.
+Auth.js/next-auth v4 (credentials) · Tailwind 4 + shadcn/ui (base-ui) · isomorphic-git.
 
 ## Snelstart (lokaal)
 
