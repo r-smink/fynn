@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Outfit } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { db } from "@/lib/db";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const outfit = Outfit({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "FYNN",
@@ -31,8 +31,8 @@ async function brandVars(): Promise<Record<string, string>> {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const vars = await brandVars();
   return (
-    <html lang="nl">
-      <body className={`${inter.variable} antialiased`} style={vars as React.CSSProperties}>
+    <html lang="nl" className={outfit.variable}>
+      <body className="antialiased" style={vars as React.CSSProperties}>
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster />
       </body>
