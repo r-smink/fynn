@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
+import { isSuperadmin } from "@/lib/roles";
 import { db } from "@/lib/db";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -6,19 +8,25 @@ import {
 import { Card } from "@/components/ui/card";
 
 export default async function UsagePage() {
-  await requireUser();
+  const user = await requireUser();
+  if (!user) redirect("/login");
+  const all = isSuperadmin(user.role);
+  const where = all ? {} : { userId: user.id };
   const [events, totals, byModel] = await Promise.all([
     db.usageEvent.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { user: { select: { name: true } } },
     }),
     db.usageEvent.aggregate({
+      where,
       _sum: { promptTokens: true, completionTokens: true, cost: true },
       _count: true,
     }),
     db.usageEvent.groupBy({
       by: ["model"],
+      where,
       _sum: { promptTokens: true, completionTokens: true, cost: true },
       _count: true,
       orderBy: { _sum: { cost: "desc" } },
@@ -30,7 +38,7 @@ export default async function UsagePage() {
   return (
     <div className="h-full overflow-auto p-6">
       <h1 className="mb-1 text-2xl font-bold">Usage & kosten</h1>
-      <p className="mb-6 text-sm text-muted-foreground">Geschatte OpenRouter-kosten op basis van catalogusprijzen.</p>
+      <p className="mb-6 text-sm text-muted-foreground">{all ? "Alle gebruikers" : "Jouw gebruik"} · geschatte OpenRouter-kosten op basis van catalogusprijzen.</p>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <Card className="p-4">

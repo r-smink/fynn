@@ -25,7 +25,9 @@ Whitelabel ChatGPT/Claude-style chatplatform voor het Fyndable-team (zie README.
   `BLOB_READ_WRITE_TOKEN` gezet is, anders `FYNN_DATA_DIR`. Geen directe fs-writes voor
   uploads/images (Vercel-filesystem is ephemeral).
 - **Auth**: next-auth v4 credentials + JWT, secret = `AUTH_SECRET`. Guard in `proxy.ts`
-  (Next 16 = geen `middleware.ts` meer). Server-side: `requireUser()`/`requireAdmin()` uit `lib/auth.ts`.
+  (Next 16 = geen `middleware.ts` meer). Server-side: `requireUser()`/`requireAdmin()`/`requireSuperadmin()` uit `lib/auth.ts`.
+  Rollen (`lib/roles.ts`): `member` (eigen chats/usage), `admin` (+ beheer), `superadmin`
+  (+ alle chats read-only via `/all-chats` en usage van iedereen). Chats altijd filteren op `userId`.
 - **UI**: shadcn/ui op **base-ui** (geen Radix): geen `asChild` — gebruik `render={<Link/>}` of
   `buttonVariants()` op een `Link`. Select `onValueChange` geeft `string | null` — coerce met `?? ""`.
 - FS-walking: eigen `lib/fsx.ts` (`walkDir`/`iterFiles` met picomatch) — `fs.glob` is niet betrouwbaar
