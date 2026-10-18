@@ -1,11 +1,10 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { databaseUrl } from "../lib/database-url";
 
-const adapter = new PrismaBetterSqlite3({
-  url: process.env.DATABASE_URL || "file:./data/fynn.db",
-});
+const adapter = new PrismaPg({ connectionString: databaseUrl() });
 const db = new PrismaClient({ adapter });
 
 const FYNDABLE_THEME = {

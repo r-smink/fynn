@@ -19,8 +19,11 @@ Whitelabel ChatGPT/Claude-style chatplatform voor het Fyndable-team (zie README.
   `toUIMessageStreamResponse`, tools via `tool({inputSchema: z.object, execute})`, multi-step via
   `stopWhen: stepCountIs(8)`. Client: `useChat({id, messages, transport: new DefaultChatTransport(...)})`,
   `sendMessage({text}, {body})`.
-- **DB**: Prisma 7 (`prisma-client` generator → `@/generated/prisma/client`) + better-sqlite3
-  driver-adapter. CLI-config in `prisma7.config.ts`. SQLite Bytes-velden = `Uint8Array`.
+- **DB**: Prisma 7 (`prisma-client` generator → `@/generated/prisma/client`) + PostgreSQL via
+  `@prisma/adapter-pg`. CLI-config in `prisma7.config.ts`. Bytes-velden (`bytea`) = `Uint8Array`.
+- **Opslag**: `lib/storage.ts` (`putFile`/`getFile`) → Vercel Blob (private) als
+  `BLOB_READ_WRITE_TOKEN` gezet is, anders `FYNN_DATA_DIR`. Geen directe fs-writes voor
+  uploads/images (Vercel-filesystem is ephemeral).
 - **Auth**: next-auth v4 credentials + JWT, secret = `AUTH_SECRET`. Guard in `proxy.ts`
   (Next 16 = geen `middleware.ts` meer). Server-side: `requireUser()`/`requireAdmin()` uit `lib/auth.ts`.
 - **UI**: shadcn/ui op **base-ui** (geen Radix): geen `asChild` — gebruik `render={<Link/>}` of
@@ -38,7 +41,9 @@ Whitelabel ChatGPT/Claude-style chatplatform voor het Fyndable-team (zie README.
 - `lib/rag/` — chunk, embed (OpenRouter `EMBEDDING_MODEL`), cosine-search, ingest (file/url/sitemap/git/folder)
 - `lib/tools/` — platform (Fyndable admin-API), web (`:online` + fetch), image (`IMAGE_MODEL`), repo
 - `lib/export.ts` — markdown → on-brand HTML
-- `data/` (gitignored) — SQLite db, repo-clones, uploads, gegenereerde images
+- `data/` (gitignored) — lokale uploads + gegenereerde images (zonder Blob-token)
+- Git-bronnen: tijdelijke clone in `$TMPDIR/fynn-repos` → tekstbestanden naar `RepoFile`
+  (repo-tools lezen uit de db)
 
 ## Verifiëren
 
@@ -46,8 +51,9 @@ Whitelabel ChatGPT/Claude-style chatplatform voor het Fyndable-team (zie README.
 
 ## Bekende aandachtspunten
 
-- Knowledge/git-sync draait synchroon in de API-route (maxDuration 600) — bij grote repos kan dit
+- Knowledge/git-sync draait synchroon in de API-route (maxDuration 300 = Vercel Hobby-max) — bij grote repos kan dit
   lang duren; later eventueel queue'en.
-- Embeddings worden als Float32Array-blob in SQLite opgeslagen; cosine in JS — prima tot ~50k chunks.
+- Embeddings worden als Float32Array-blob (`bytea`) opgeslagen; cosine in JS — prima tot ~50k
+  chunks. Later eventueel pgvector.
 - `web_search` gebruikt OpenRouter `:online`-suffix (extra kosten per resultaat).
 - Secrets alleen server-side uit env; WP App Password is Basic-auth → alleen HTTPS.

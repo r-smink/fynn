@@ -6,6 +6,7 @@ import { chunkText } from "@/lib/rag/chunk";
 import { embedBatch, toBuffer } from "@/lib/rag/embed";
 import { htmlToText, parseSitemap } from "@/lib/rag/html";
 import { syncRepo, type GitConfig } from "@/lib/rag/git";
+import { getFile } from "@/lib/storage";
 
 const TEXT_EXT = new Set([
   ".md", ".markdown", ".mdx", ".txt", ".html", ".htm", ".json", ".xml",
@@ -14,6 +15,11 @@ const TEXT_EXT = new Set([
 ]);
 const MAX_FILE_BYTES = 400_000;
 const MAX_SITE_PAGES = 80;
+const REPO_SKIP = /node_modules|\.git\/|vendor|dist|build|\.next|package-lock|composer\.lock/i;
+const BATCH = 200;
+
+/** Postgres text columns reject NUL bytes. */
+const clean = (t: string) => t.replace(/\u0000/g, "");
 
 type SourceConfig = Record<string, unknown> & Partial<GitConfig>;
 
@@ -33,7 +39,7 @@ async function readDoc(fp: string): Promise<string | null> {
   try {
     const stat = await fs.stat(fp);
     if (stat.size > MAX_FILE_BYTES) return null;
-    const raw = await fs.readFile(fp, "utf8");
+    const raw = clean(await fs.readFile(fp, "utf8"));
     return path.extname(fp).match(/\.html?$/i) ? htmlToText(raw) : raw;
   } catch {
     return null;
@@ -51,12 +57,35 @@ async function fetchText(url: string): Promise<string> {
   return ct.includes("html") ? htmlToText(body) : body;
 }
 
+/** Snapshot all text files of a clone into RepoFile, so repo_search/repo_file work without a clone on disk. */
+async function storeRepoFiles(sourceId: string, dir: string, exclude?: string[]) {
+  const files: { sourceId: string; path: string; content: string }[] = [];
+  for await (const fp of iterTextFiles(dir, undefined, exclude)) {
+    const rel = path.relative(dir, fp);
+    if (REPO_SKIP.test(rel)) continue;
+    const content = await readDoc(fp);
+    if (content) files.push({ sourceId, path: rel, content });
+  }
+  await db.$transaction(async (tx) => {
+    await tx.repoFile.deleteMany({ where: { sourceId } });
+    for (let i = 0; i < files.length; i += BATCH) {
+      await tx.repoFile.createMany({ data: files.slice(i, i + BATCH) });
+    }
+  }, { timeout: 120_000 });
+}
+
 /** Collect (path, text) docs for a source. */
 async function collectDocs(source: { id: string; type: string; config: string }): Promise<{ path: string; text: string }[]> {
   const cfg = JSON.parse(source.config || "{}") as SourceConfig;
   const docs: { path: string; text: string }[] = [];
 
-  if (source.type === "file") {
+  if (source.type === "file" && cfg.storageKey) {
+    const buf = await getFile(String(cfg.storageKey));
+    if (!buf) throw new Error("Geüpload bestand niet gevonden in opslag");
+    const name = String(cfg.filename ?? cfg.storageKey);
+    const raw = clean(new TextDecoder().decode(buf));
+    docs.push({ path: name, text: /\.html?$/i.test(name) ? htmlToText(raw) : raw });
+  } else if (source.type === "file") {
     const fp = String(cfg.localPath ?? "");
     const text = await readDoc(fp);
     if (text) docs.push({ path: fp, text });
@@ -89,12 +118,17 @@ async function collectDocs(source: { id: string; type: string; config: string })
   } else if (source.type === "git") {
     if (!cfg.repoUrl) throw new Error("repoUrl ontbreekt in source-config");
     const { dir, sha } = await syncRepo(source.id, cfg as GitConfig);
-    const include = (cfg.include as string[])?.length
-      ? (cfg.include as string[])
-      : ["**/*.md", "**/*.txt", "**/*.mdx", "docs/**", "**/README*", "**/AGENTS.md"];
-    for await (const fp of iterTextFiles(dir, include, cfg.exclude as string[])) {
-      const text = await readDoc(fp);
-      if (text) docs.push({ path: `${path.relative(dir, fp)} @${sha.slice(0, 8)}`, text });
+    try {
+      const include = (cfg.include as string[])?.length
+        ? (cfg.include as string[])
+        : ["**/*.md", "**/*.txt", "**/*.mdx", "docs/**", "**/README*", "**/AGENTS.md"];
+      for await (const fp of iterTextFiles(dir, include, cfg.exclude as string[])) {
+        const text = await readDoc(fp);
+        if (text) docs.push({ path: `${path.relative(dir, fp)} @${sha.slice(0, 8)}`, text });
+      }
+      await storeRepoFiles(source.id, dir, cfg.exclude as string[]);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
     }
   }
   return docs;
@@ -120,15 +154,14 @@ export async function syncSource(sourceId: string): Promise<{ chunks: number; er
     await db.knowledgeChunk.deleteMany({ where: { sourceId } });
 
     const vectors = await embedBatch(items.map((i) => i.text));
-    for (let i = 0; i < items.length; i++) {
-      await db.knowledgeChunk.create({
-        data: {
-          sourceId,
-          path: items[i].path,
-          text: items[i].text,
-          embedding: toBuffer(vectors[i]),
-        },
-      });
+    const rows = items.map((it, i) => ({
+      sourceId,
+      path: it.path,
+      text: it.text,
+      embedding: toBuffer(vectors[i]),
+    }));
+    for (let i = 0; i < rows.length; i += BATCH) {
+      await db.knowledgeChunk.createMany({ data: rows.slice(i, i + BATCH) });
     }
 
     await db.knowledgeSource.update({

@@ -1,10 +1,9 @@
 import { tool, generateImage } from "ai";
 import { z } from "zod";
-import fs from "fs/promises";
-import path from "path";
 import crypto from "crypto";
 import { openrouter } from "@/lib/openrouter";
-import { env, imagesDir } from "@/lib/env";
+import { env } from "@/lib/env";
+import { putFile } from "@/lib/storage";
 
 export function imageTools() {
   return {
@@ -23,10 +22,8 @@ export function imageTools() {
             model: openrouter().imageModel(env.imageModel),
             prompt,
           });
-          const dir = imagesDir();
-          await fs.mkdir(dir, { recursive: true });
           const name = `${(filename || "img").replace(/[^a-z0-9-_]/gi, "-").toLowerCase()}-${crypto.randomBytes(4).toString("hex")}.png`;
-          await fs.writeFile(path.join(dir, name), image.uint8Array);
+          await putFile(`images/${name}`, image.uint8Array, "image/png");
           return { url: `/api/files/images/${name}`, filename: name };
         } catch (e) {
           return { error: e instanceof Error ? e.message : String(e) };

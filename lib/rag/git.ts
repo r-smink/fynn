@@ -30,24 +30,15 @@ function authedUrl(config: GitConfig): string {
 }
 
 /** Clone (shallow) or pull a repo into data/repos/<sourceId>. Returns commit sha. */
+/** Fresh shallow clone into a scratch dir (serverless filesystems are ephemeral). Caller removes `dir`. */
 export async function syncRepo(sourceId: string, config: GitConfig): Promise<{ dir: string; sha: string }> {
   const dir = repoDir(sourceId);
-  const url = authedUrl(config);
-  const exists = await fs.stat(path.join(dir, ".git")).then(() => true).catch(() => false);
-
-  if (exists) {
-    const git = simpleGit(dir);
-    await git.fetch(["--depth", "1", "origin", config.branch || "HEAD"]).catch(() => git.fetch());
-    const branch = config.branch || (await git.revparse(["--abbrev-ref", "HEAD"])).trim();
-    await git.reset(["--hard", `origin/${branch}`]);
-  } else {
-    await fs.mkdir(dir, { recursive: true });
-    await simpleGit().clone(url, dir, [
-      "--depth", "1",
-      ...(config.branch ? ["--branch", config.branch] : []),
-    ]);
-  }
-
+  await fs.rm(dir, { recursive: true, force: true });
+  await fs.mkdir(path.dirname(dir), { recursive: true });
+  await simpleGit().clone(authedUrl(config), dir, [
+    "--depth", "1",
+    ...(config.branch ? ["--branch", config.branch] : []),
+  ]);
   const sha = (await simpleGit(dir).revparse(["HEAD"])).trim();
   return { dir, sha };
 }

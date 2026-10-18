@@ -6,9 +6,9 @@ const nextConfig: NextConfig = {
   partialPrefetching: false,
   output: "standalone",
   serverExternalPackages: [
-    "better-sqlite3",
+    "pg",
     "@prisma/client",
-    "@prisma/adapter-better-sqlite3",
+    "@prisma/adapter-pg",
     "simple-git",
   ],
   turbopack: {
