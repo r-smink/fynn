@@ -18,7 +18,7 @@ export const env = {
     return process.env.FYNDABLE_WP_APP_PASSWORD || "";
   },
   get imageModel() {
-    return process.env.IMAGE_MODEL || "google/gemini-2.5-flash-image-preview";
+    return process.env.IMAGE_MODEL || "google/gemini-2.5-flash-image";
   },
   get embeddingModel() {
     return process.env.EMBEDDING_MODEL || "openai/text-embedding-3-small";

@@ -85,37 +85,41 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #1A1226;
+  --foreground: #FFFFFF;
+  --card: #24122F;
+  --card-foreground: #FFFFFF;
+  --popover: #24122F;
+  --popover-foreground: #FFFFFF;
+  --primary: #8F39AC;
+  --primary-foreground: #FFFFFF;
+  --secondary: #2E1A3D;
+  --secondary-foreground: #FFFFFF;
+  --muted: #2E1A3D;
+  --muted-foreground: #AEAEAE;
+  --accent: #371447;
+  --accent-foreground: #FFFFFF;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: rgb(255 255 255 / 12%);
+  --input: rgb(255 255 255 / 18%);
+  --ring: #379FD3;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #132A38;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #8F39AC;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E3A4C;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgb(255 255 255 / 10%);
+  --sidebar-ring: #379FD3;
+}
+
+.dark body {
+  background: linear-gradient(135deg, #371447 0%, #132A38 100%) fixed;
 }
 
 @layer base {
@@ -151,3 +155,5 @@
 .prose-fynn th { background: var(--muted); font-weight: 600; }
 .prose-fynn img { max-width: 100%; border-radius: 8px; }
 .prose-fynn hr { margin: 1.2em 0; border-color: var(--border); }
+
+.dark .hljs { background: #0F1F2A; color: #E6EDF3; }
