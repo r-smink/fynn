@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Database, FileText, FolderGit2, Globe, Link as LinkIcon,
+  Database, FileText, FolderGit2, Globe, Image as ImageIcon, Link as LinkIcon,
   Plus, RefreshCw, Trash2, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,21 @@ type Source = {
   brand?: { id: string; name: string } | null;
 };
 
+type Asset = {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  caption: string;
+  createdAt: string | Date;
+};
+
+const UPLOAD_ACCEPT = ".md,.markdown,.mdx,.txt,.html,.htm,.json,.xml,.yml,.yaml,.toml,.csv,.css,.ts,.tsx,.js,.jsx,.php,.py,.sql,.sh,.ps1,.svg,.env.example,.png,.jpg,.jpeg,.webp,.gif";
+const CREATE_TYPES = ["upload", "url", "sitemap", "git"];
+
 const TYPE_META: Record<string, { label: string; icon: typeof Globe }> = {
   file: { label: "Bestand", icon: FileText },
+  upload: { label: "Upload (bestanden & afbeeldingen)", icon: ImageIcon },
   url: { label: "Pagina (URL)", icon: LinkIcon },
   sitemap: { label: "Website (sitemap)", icon: Globe },
   git: { label: "Git-repo", icon: FolderGit2 },
@@ -32,6 +45,20 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   ready: "default", syncing: "secondary", pending: "outline", error: "destructive",
 };
 
+function emptyForm() {
+  return {
+    name: "", type: "upload", brandId: "",
+    url: "", maxPages: "60",
+    repoUrl: "", branch: "", token: "", include: "", exclude: "",
+  };
+}
+
+function formatBytes(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function KnowledgeAdmin({
   sources, brands, canEdit,
 }: { sources: Source[]; brands: { id: string; name: string }[]; canEdit: boolean }) {
@@ -39,21 +66,85 @@ export function KnowledgeAdmin({
   const [open, setOpen] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [f, setF] = useState({
-    name: "", type: "url", brandId: "",
-    url: "", maxPages: "60", localPath: "",
-    repoUrl: "", branch: "", token: "", include: "", exclude: "",
-  });
+  const createFileRef = useRef<HTMLInputElement>(null);
+  const assetsFileRef = useRef<HTMLInputElement>(null);
+  const [f, setF] = useState(emptyForm);
+  const [createFiles, setCreateFiles] = useState<File[]>([]);
+  const [filesSource, setFilesSource] = useState<Source | null>(null);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [loadingAssets, setLoadingAssets] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
+
+  async function uploadFilesSequentially(
+    files: File[],
+    options: { sourceId?: string; name?: string; brandId?: string } = {},
+  ): Promise<{ sourceId: string | null; uploaded: number; error?: string }> {
+    let sourceId = options.sourceId ?? "";
+    let uploaded = 0;
+    let error: string | undefined;
+    setUploadProgress({ done: 0, total: files.length });
+
+    try {
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("sync", "0");
+        if (sourceId) {
+          fd.append("sourceId", sourceId);
+        } else {
+          if (options.name) fd.append("name", options.name);
+          if (options.brandId) fd.append("brandId", options.brandId);
+        }
+        const res = await fetch("/api/knowledge/upload", { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) throw new Error(data.error || "Upload mislukt");
+        sourceId = data.source?.id ?? sourceId;
+        uploaded++;
+        setUploadProgress({ done: uploaded, total: files.length });
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+
+    if (sourceId && uploaded) {
+      try {
+        const res = await fetch(`/api/knowledge/${sourceId}/sync`, { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) throw new Error(data.error || "Synchroniseren mislukt");
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        error = error ? `${error}; synchroniseren mislukt: ${message}` : `Synchroniseren mislukt: ${message}`;
+      }
+    }
+    setUploadProgress(null);
+    return { sourceId: sourceId || null, uploaded, ...(error ? { error } : {}) };
+  }
 
   async function save() {
+    if (f.type === "upload") {
+      if (!createFiles.length) {
+        toast.error("Selecteer ten minste één bestand.");
+        return;
+      }
+      const total = createFiles.length;
+      const result = await uploadFilesSequentially(createFiles, {
+        name: f.name.trim() || createFiles[0].name,
+        brandId: f.brandId,
+      });
+      if (result.uploaded) {
+        setOpen(false);
+        setCreateFiles([]);
+        setF(emptyForm());
+        router.refresh();
+      }
+      if (result.error) toast.error(`${result.uploaded}/${total} geüpload: ${result.error}`);
+      else toast.success(`${result.uploaded}/${total} bestanden geüpload en gesynchroniseerd`);
+      return;
+    }
+
     const config: Record<string, unknown> = {};
     if (f.type === "url") config.url = f.url;
     if (f.type === "sitemap") { config.url = f.url; config.maxPages = Number(f.maxPages) || 60; }
-    if (f.type === "file" || f.type === "folder") {
-      config.localPath = f.localPath;
-      if (f.include) config.include = f.include.split(",").map((s) => s.trim());
-      if (f.exclude) config.exclude = f.exclude.split(",").map((s) => s.trim());
-    }
     if (f.type === "git") {
       Object.assign(config, {
         repoUrl: f.repoUrl,
@@ -68,7 +159,12 @@ export function KnowledgeAdmin({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: f.name, type: f.type, brandId: f.brandId || null, config }),
     });
-    const { source } = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) {
+      toast.error(data.error || "De bron kon niet worden aangemaakt");
+      return;
+    }
+    const { source } = data;
     setOpen(false);
     toast.success("Bron aangemaakt — sync gestart");
     fetch(`/api/knowledge/${source.id}/sync`, { method: "POST" }).finally(() => router.refresh());
@@ -77,12 +173,15 @@ export function KnowledgeAdmin({
 
   async function sync(id: string) {
     setSyncing(id);
-    const res = await fetch(`/api/knowledge/${id}/sync`, { method: "POST" });
-    const data = await res.json();
-    setSyncing(null);
-    if (data.error) toast.error(`Sync mislukt: ${data.error}`);
-    else toast.success(`${data.chunks} chunks geïndexeerd`);
-    router.refresh();
+    try {
+      const res = await fetch(`/api/knowledge/${id}/sync`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || data.error) toast.error(`Sync mislukt: ${data.error ?? "onbekende fout"}`);
+      else toast.success(`${data.chunks} chunks geïndexeerd`);
+      router.refresh();
+    } finally {
+      setSyncing(null);
+    }
   }
 
   async function remove(id: string) {
@@ -92,15 +191,61 @@ export function KnowledgeAdmin({
   }
 
   async function upload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/knowledge/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.error) toast.error(data.error);
-    else toast.success(`${file.name}: ${data.chunks} chunks geïndexeerd`);
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const name = `${files[0].name}${files.length > 1 ? ` (+${files.length - 1})` : ""}`;
+    const result = await uploadFilesSequentially(files, { name });
     e.target.value = "";
+    if (result.error) toast.error(`${result.uploaded}/${files.length} geüpload: ${result.error}`);
+    else toast.success(`${result.uploaded} bestanden geüpload en gesynchroniseerd`);
+    if (result.sourceId) router.refresh();
+  }
+
+  async function loadAssets(sourceId: string) {
+    setLoadingAssets(true);
+    try {
+      const res = await fetch(`/api/knowledge/${sourceId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Bestanden konden niet worden geladen");
+      setAssets(data.source.assets ?? []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingAssets(false);
+    }
+  }
+
+  function showAssets(source: Source) {
+    setAssets([]);
+    setFilesSource(source);
+    void loadAssets(source.id);
+  }
+
+  async function addAssets(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files ?? []);
+    const source = filesSource;
+    if (!selected.length || !source) return;
+    const result = await uploadFilesSequentially(selected, { sourceId: source.id });
+    e.target.value = "";
+    if (result.error) toast.error(`${result.uploaded}/${selected.length} geüpload: ${result.error}`);
+    else toast.success(`${result.uploaded} bestanden toegevoegd en gesynchroniseerd`);
+    await loadAssets(source.id);
+    router.refresh();
+  }
+
+  async function deleteAsset(asset: Asset) {
+    const source = filesSource;
+    if (!source || !confirm(`Bestand "${asset.filename}" verwijderen?`)) return;
+    const res = await fetch(`/api/knowledge/${source.id}/assets/${asset.id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (data.ok && data.syncError) {
+      toast.warning(`Bestand verwijderd, maar synchroniseren is mislukt: ${data.syncError}`);
+    } else if (!res.ok || data.error) {
+      toast.error(data.error || "Het bestand kon niet worden verwijderd");
+    } else {
+      toast.success("Bestand verwijderd");
+    }
+    await loadAssets(source.id);
     router.refresh();
   }
 
@@ -109,14 +254,22 @@ export function KnowledgeAdmin({
       <div className="mb-4 flex gap-2">
         {canEdit && (
           <>
-            <Button onClick={() => setOpen(true)}><Plus className="mr-1 h-4 w-4" /> Nieuwe bron</Button>
-            <Button variant="outline" onClick={() => fileRef.current?.click()}>
-              <Upload className="mr-1 h-4 w-4" /> Upload bestand
+            <Button onClick={() => { setF(emptyForm()); setCreateFiles([]); setOpen(true); }}>
+              <Plus className="mr-1 h-4 w-4" /> Nieuwe bron
             </Button>
-            <input ref={fileRef} type="file" accept=".md,.txt,.html,.markdown,.csv,.json" className="hidden" onChange={upload} />
+            <Button variant="outline" onClick={() => fileRef.current?.click()}>
+              <Upload className="mr-1 h-4 w-4" /> Upload bestanden
+            </Button>
+            <input ref={fileRef} type="file" accept={UPLOAD_ACCEPT} multiple className="hidden" onChange={upload} />
+            <input ref={assetsFileRef} type="file" accept={UPLOAD_ACCEPT} multiple className="hidden" onChange={addAssets} />
           </>
         )}
       </div>
+      {uploadProgress && (
+        <p role="status" className="mb-3 text-sm text-muted-foreground">
+          {uploadProgress.done}/{uploadProgress.total} geüpload
+        </p>
+      )}
 
       <div className="space-y-2">
         {sources.map((s) => {
@@ -139,6 +292,11 @@ export function KnowledgeAdmin({
               </div>
               {canEdit && (
                 <div className="flex gap-1">
+                  {s.type === "upload" && (
+                    <Button variant="outline" size="sm" onClick={() => showAssets(s)}>
+                      <FileText className="mr-1 h-3.5 w-3.5" /> Bestanden
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" onClick={() => sync(s.id)} disabled={syncing === s.id}>
                     <RefreshCw className={`mr-1 h-3.5 w-3.5 ${syncing === s.id ? "animate-spin" : ""}`} /> Sync
                   </Button>
@@ -151,7 +309,13 @@ export function KnowledgeAdmin({
         {!sources.length && <p className="text-sm text-muted-foreground">Nog geen bronnen.</p>}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+          setCreateFiles([]);
+          setF(emptyForm());
+        }
+      }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader><DialogTitle>Nieuwe kennisbron</DialogTitle></DialogHeader>
           <div className="grid gap-4">
@@ -165,8 +329,8 @@ export function KnowledgeAdmin({
                 <Select value={f.type} onValueChange={(v) => setF({ ...f, type: v ?? "url" })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {Object.entries(TYPE_META).map(([k, m]) => (
-                      <SelectItem key={k} value={k}>{m.label}</SelectItem>
+                    {CREATE_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>{TYPE_META[type].label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -199,11 +363,24 @@ export function KnowledgeAdmin({
               </>
             )}
 
-            {(f.type === "file" || f.type === "folder") && (
+            {f.type === "upload" && (
               <div className="space-y-1">
-                <Label>Lokaal pad</Label>
-                <Input value={f.localPath} onChange={(e) => setF({ ...f, localPath: e.target.value })}
-                  placeholder={f.type === "file" ? "C:\\pad\\naar\\doc.md" : "C:\\pad\\naar\\map"} />
+                <Label>Bestanden</Label>
+                <Input
+                  ref={createFileRef}
+                  type="file"
+                  accept={UPLOAD_ACCEPT}
+                  multiple
+                  onChange={(e) => setCreateFiles(Array.from(e.target.files ?? []))}
+                />
+                {createFiles.length > 0 && (
+                  <p className="text-xs text-muted-foreground">{createFiles.length} bestanden geselecteerd</p>
+                )}
+                {uploadProgress && (
+                  <p role="status" className="text-xs text-muted-foreground">
+                    {uploadProgress.done}/{uploadProgress.total} geüpload
+                  </p>
+                )}
               </div>
             )}
 
@@ -226,7 +403,7 @@ export function KnowledgeAdmin({
               </>
             )}
 
-            {(f.type === "git" || f.type === "folder") && (
+            {f.type === "git" && (
               <div className="space-y-1">
                 <Label>Include globs (komma-gescheiden, leeg = defaults)</Label>
                 <Input value={f.include} onChange={(e) => setF({ ...f, include: e.target.value })}
@@ -236,9 +413,100 @@ export function KnowledgeAdmin({
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setOpen(false)}>Annuleren</Button>
-              <Button onClick={save} disabled={!f.name}>Toevoegen + syncen</Button>
+              <Button
+                onClick={save}
+                disabled={uploadProgress !== null || (f.type === "upload" ? !createFiles.length : !f.name)}
+              >
+                {f.type === "upload" ? "Bestanden uploaden" : "Toevoegen + syncen"}
+              </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!filesSource} onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          setFilesSource(null);
+          setAssets([]);
+        }
+      }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Bestanden{filesSource ? ` — ${filesSource.name}` : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">{assets.length} bestanden</p>
+            <Button
+              variant="outline"
+              onClick={() => assetsFileRef.current?.click()}
+              disabled={uploadProgress !== null}
+            >
+              <Upload className="mr-1 h-4 w-4" /> Bestanden toevoegen
+            </Button>
+          </div>
+          {uploadProgress && (
+            <p role="status" className="mb-3 text-sm text-muted-foreground">
+              {uploadProgress.done}/{uploadProgress.total} geüpload
+            </p>
+          )}
+          {loadingAssets ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Bestanden laden…</p>
+          ) : assets.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Deze bron bevat nog geen bestanden.</p>
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {assets.filter((asset) => asset.contentType.startsWith("image/")).map((asset) => (
+                  <div key={asset.id} className="relative min-w-0 rounded-lg border p-2">
+                    <a
+                      href={`/api/knowledge/assets/${asset.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/knowledge/assets/${asset.id}`}
+                        alt={asset.filename}
+                        className="h-40 w-full rounded object-contain"
+                      />
+                      <p className="mt-2 line-clamp-3 text-xs text-muted-foreground" title={asset.caption || asset.filename}>
+                        {asset.caption || asset.filename}
+                      </p>
+                    </a>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="truncate text-xs" title={asset.filename}>{asset.filename}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteAsset(asset)}
+                        aria-label={`${asset.filename} verwijderen`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 space-y-2">
+                {assets.filter((asset) => !asset.contentType.startsWith("image/")).map((asset) => (
+                  <div key={asset.id} className="flex items-center gap-3 rounded-lg border px-3 py-2">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate text-sm" title={asset.filename}>{asset.filename}</span>
+                    <span className="text-xs text-muted-foreground">{formatBytes(asset.size)}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteAsset(asset)}
+                      aria-label={`${asset.filename} verwijderen`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

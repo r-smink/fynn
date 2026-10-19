@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { get, put } from "@vercel/blob";
+import { del, get, put } from "@vercel/blob";
 import { env } from "@/lib/env";
 
 /** Files live in Vercel Blob (private) when BLOB_READ_WRITE_TOKEN is set, otherwise under FYNN_DATA_DIR. */
@@ -34,4 +34,12 @@ export async function getFile(key: string): Promise<Uint8Array | null> {
     return new Uint8Array(await new Response(res.stream).arrayBuffer());
   }
   return fs.readFile(localPath(key)).then((b) => new Uint8Array(b)).catch(() => null);
+}
+
+export async function deleteFile(key: string): Promise<void> {
+  if (blobEnabled()) {
+    await del(key);
+    return;
+  }
+  await fs.rm(localPath(key), { force: true });
 }

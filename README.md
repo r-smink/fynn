@@ -74,6 +74,7 @@ self-hosting (lokale map).
 ## Env
 
 Zie `.env.example`. Belangrijk: `OPENROUTER_API_KEY` (vereist voor chat/embeddings/images),
+`VISION_MODEL` (optioneel, standaard `google/gemini-2.5-flash-lite` voor afbeeldingsbeschrijvingen),
 `AUTH_SECRET`, `FYNDABLE_WP_USER`+`FYNDABLE_WP_APP_PASSWORD` (WP Application Password op
 portal.fyndable.ai voor live platform-data).
 
