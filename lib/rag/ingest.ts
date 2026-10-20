@@ -9,6 +9,7 @@ import { syncRepo, type GitConfig } from "@/lib/rag/git";
 import { getFile } from "@/lib/storage";
 import { describeImage } from "@/lib/rag/vision";
 import { env } from "@/lib/env";
+import { css2Url, resolveGoogleFonts } from "@/lib/rag/fonts";
 
 export const TEXT_EXT = new Set([
   ".md", ".markdown", ".mdx", ".txt", ".html", ".htm", ".json", ".xml",
@@ -219,6 +220,25 @@ export async function collectDocs(
     } else {
       docs.push(...(await crawlSite(start, limit)));
     }
+  } else if (source.type === "google-fonts") {
+    const { cssUrl, label, families } = resolveGoogleFonts(String(cfg.url ?? ""));
+    let css: string;
+    try {
+      css = await fetchText(cssUrl);
+    } catch (err) {
+      // statische fonts zonder variabele weights: val terug op kale family-aanroep
+      if (!families.length) throw err;
+      const plain = `${css2Url(families).replaceAll(":wght@100..900", "")}`;
+      css = await fetchText(plain).catch(() => {
+        throw new Error(`Google Fonts CSS ophalen mislukt: ${cssUrl}`);
+      });
+    }
+    const urls = [...css.matchAll(/url\((https:[^)]+)\)/g)].map((m) => m[1]);
+    const uniqueFiles = [...new Set(urls)];
+    docs.push({
+      path: cssUrl,
+      text: `Google Fonts: ${label}\nCSS-API: ${cssUrl}\n\nFont-bestanden (${uniqueFiles.length}):\n${uniqueFiles.join("\n")}\n\n${css}\n\nGebruik in CSS:\n@import url('${cssUrl}');\n\nfont-family: '${label.split(",")[0]}', sans-serif;`,
+    });
   } else if (source.type === "git") {
     if (!cfg.repoUrl) throw new Error("repoUrl ontbreekt in source-config");
     const { dir, sha } = await syncRepo(source.id, cfg as GitConfig);

@@ -13,9 +13,15 @@ import { logUsage } from "@/lib/usage";
 
 export const maxDuration = 300;
 
-async function ensureTitle(conversationId: string, firstUserText: string) {
+function fallbackTitle(text: string): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, 60);
+}
+
+async function improveTitle(conversationId: string, firstUserText: string) {
   const convo = await db.conversation.findUnique({ where: { id: conversationId } });
-  if (!convo || convo.title !== "Nieuw gesprek") return;
+  if (!convo) return;
+  const fallback = fallbackTitle(firstUserText);
+  if (convo.title !== "Nieuw gesprek" && convo.title !== fallback) return;
   try {
     const res = await generateText({
       model: openrouter().chat("openai/gpt-4o-mini"),
@@ -23,9 +29,9 @@ async function ensureTitle(conversationId: string, firstUserText: string) {
     });
     await db.conversation.update({
       where: { id: conversationId },
-      data: { title: res.text.trim().slice(0, 80) || convo.title },
+      data: { title: res.text.trim().slice(0, 80) || fallback },
     });
-  } catch { /* non-fatal */ }
+  } catch { /* behoud de fallback-titel */ }
 }
 
 export async function POST(req: Request) {
@@ -81,6 +87,17 @@ export async function POST(req: Request) {
       },
     });
   }
+  if (convo.title === "Nieuw gesprek") {
+    const fallback = fallbackTitle(
+      lastUser.parts
+        ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join(" ") ?? "",
+    );
+    if (fallback) {
+      await db.conversation.update({ where: { id: conversationId }, data: { title: fallback } }).catch(() => {});
+    }
+  }
 
   const brand = agent?.brand ?? convo.brand;
   const brandSources = brand
@@ -113,7 +130,7 @@ export async function POST(req: Request) {
         ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
         .map((p) => p.text)
         .join(" ") ?? "";
-      ensureTitle(conversationId, firstText).catch(() => {});
+      await improveTitle(conversationId, firstText);
     },
   });
 

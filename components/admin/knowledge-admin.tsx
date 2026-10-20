@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Database, FileText, FolderGit2, Globe, Image as ImageIcon, Link as LinkIcon,
+  Database, FileText, FolderGit2, Globe, Image as ImageIcon, Link as LinkIcon, Type,
   Plus, RefreshCw, Trash2, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ type Asset = {
 };
 
 const UPLOAD_ACCEPT = ".md,.markdown,.mdx,.txt,.html,.htm,.json,.xml,.yml,.yaml,.toml,.csv,.css,.ts,.tsx,.js,.jsx,.php,.py,.sql,.sh,.ps1,.svg,.env.example,.png,.jpg,.jpeg,.webp,.gif";
-const CREATE_TYPES = ["upload", "url", "sitemap", "git"];
+const CREATE_TYPES = ["upload", "url", "sitemap", "git", "google-fonts"];
 
 const TYPE_META: Record<string, { label: string; icon: typeof Globe }> = {
   file: { label: "Bestand", icon: FileText },
@@ -39,6 +39,7 @@ const TYPE_META: Record<string, { label: string; icon: typeof Globe }> = {
   sitemap: { label: "Website (sitemap)", icon: Globe },
   git: { label: "Git-repo", icon: FolderGit2 },
   folder: { label: "Lokale map", icon: Database },
+  "google-fonts": { label: "Google Fonts", icon: Type },
 };
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -143,7 +144,7 @@ export function KnowledgeAdmin({
     }
 
     const config: Record<string, unknown> = {};
-    if (f.type === "url") config.url = f.url;
+    if (f.type === "url" || f.type === "google-fonts") config.url = f.url;
     if (f.type === "sitemap") { config.url = f.url; config.maxPages = Number(f.maxPages) || 60; }
     if (f.type === "git") {
       Object.assign(config, {
@@ -347,12 +348,12 @@ export function KnowledgeAdmin({
               </Select>
             </div>
 
-            {(f.type === "url" || f.type === "sitemap") && (
+            {(f.type === "url" || f.type === "sitemap" || f.type === "google-fonts") && (
               <>
                 <div className="space-y-1">
-                  <Label>{f.type === "sitemap" ? "Site- of sitemap-URL" : "Pagina-URL"}</Label>
+                  <Label>{f.type === "sitemap" ? "Site- of sitemap-URL" : f.type === "google-fonts" ? "Google Fonts-link of familienaam" : "Pagina-URL"}</Label>
                   <Input value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })}
-                    placeholder={f.type === "sitemap" ? "https://fyndable.ai" : "https://…"} />
+                    placeholder={f.type === "sitemap" ? "https://fyndable.ai" : f.type === "google-fonts" ? "Outfit of https://fonts.google.com/specimen/Outfit" : "https://…"} />
                 </div>
                 {f.type === "sitemap" && (
                   <div className="space-y-1">
