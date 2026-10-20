@@ -17,6 +17,7 @@ export type SearchHit = {
   path: string;
   sourceName: string;
   score: number;
+  meta: Record<string, unknown>;
 };
 
 /** Cosine search over knowledge chunks, optionally restricted to source ids. */
@@ -33,12 +34,24 @@ export async function searchKnowledge(
   });
 
   return chunks
-    .map((c) => ({
-      text: c.text,
-      path: c.path,
-      sourceName: c.source.name,
-      score: cosine(q, fromBuffer(c.embedding)),
-    }))
+    .map((c) => {
+      let meta: Record<string, unknown> = {};
+      try {
+        const parsed: unknown = JSON.parse(c.meta);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          meta = parsed as Record<string, unknown>;
+        }
+      } catch {
+        // Keep older or malformed metadata searchable without failing the query.
+      }
+      return {
+        text: c.text,
+        path: c.path,
+        sourceName: c.source.name,
+        score: cosine(q, fromBuffer(c.embedding)),
+        meta,
+      };
+    })
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
 }

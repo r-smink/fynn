@@ -78,7 +78,7 @@ export function buildTools(agent: AgentWithBrand, knowledgeSourceIds?: string[])
   if (groups.has("knowledge")) Object.assign(tools, knowledgeTools(knowledgeSourceIds));
   if (groups.has("platform")) Object.assign(tools, platformTools());
   if (groups.has("web")) Object.assign(tools, webTools());
-  if (groups.has("image")) Object.assign(tools, imageTools());
+  if (groups.has("image")) Object.assign(tools, imageTools(knowledgeSourceIds));
   if (groups.has("repo")) Object.assign(tools, repoTools());
   return tools;
 }

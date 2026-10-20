@@ -20,6 +20,9 @@ export const env = {
   get imageModel() {
     return process.env.IMAGE_MODEL || "google/gemini-2.5-flash-image";
   },
+  get visionModel() {
+    return process.env.VISION_MODEL || "google/gemini-2.5-flash-lite";
+  },
   get embeddingModel() {
     return process.env.EMBEDDING_MODEL || "openai/text-embedding-3-small";
   },

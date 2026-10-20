@@ -31,7 +31,15 @@ function ToolCall({ part }: { part: Part }) {
   const [open, setOpen] = useState(false);
   const name = part.toolName ?? part.type.replace(/^tool-/, "");
   const running = part.state === "input-streaming" || part.state === "input-available";
-  const output = part.output as { url?: string; filename?: string; error?: string } | undefined;
+  const output = part.output as {
+    url?: string;
+    filename?: string;
+    error?: string;
+    results?: { imageUrl?: string; path?: string }[];
+  } | undefined;
+  const galleryImages = Array.isArray(output?.results)
+    ? output.results.filter((result) => typeof result.imageUrl === "string").slice(0, 6)
+    : [];
 
   return (
     <div className="my-2 rounded-lg border bg-muted/40 text-sm">
@@ -68,6 +76,26 @@ function ToolCall({ part }: { part: Part }) {
         <div className="px-3 pb-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={output.url} alt={output.filename ?? "generated"} className="max-w-md rounded-lg border" />
+        </div>
+      )}
+      {galleryImages.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 border-t px-3 py-3 sm:grid-cols-3">
+          {galleryImages.map((result, i) => (
+            <a
+              key={`${result.imageUrl}-${i}`}
+              href={result.imageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="overflow-hidden rounded-md border bg-background"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={result.imageUrl}
+                alt={result.path ?? ""}
+                className="h-28 w-full object-cover"
+              />
+            </a>
+          ))}
         </div>
       )}
     </div>

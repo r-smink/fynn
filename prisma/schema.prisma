@@ -92,7 +92,7 @@ model Message {
 model KnowledgeSource {
   id         String           @id @default(cuid())
   name       String
-  type       String // file | url | sitemap | git | folder
+  type       String // file | upload | url | sitemap | git | folder
   config     String           @default("{}") // JSON: {url, repoUrl, branch, globs, localPath, credentialId}
   brandId    String?
   brand      Brand?           @relation(fields: [brandId], references: [id])
@@ -102,10 +102,25 @@ model KnowledgeSource {
   chunkCount Int              @default(0)
   createdAt  DateTime         @default(now())
   chunks     KnowledgeChunk[]
+  assets     KnowledgeAsset[]
   repoFiles  RepoFile[]
   agents     Agent[]
 
   @@index([brandId])
+}
+
+model KnowledgeAsset {
+  id          String          @id @default(cuid())
+  sourceId    String
+  source      KnowledgeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  filename    String
+  storageKey  String
+  contentType String
+  size        Int
+  caption     String          @default("")
+  createdAt   DateTime        @default(now())
+
+  @@index([sourceId])
 }
 
 model KnowledgeChunk {

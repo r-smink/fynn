@@ -7,8 +7,10 @@ import { embedBatch, toBuffer } from "@/lib/rag/embed";
 import { extractLinks, htmlToText, parseSitemap } from "@/lib/rag/html";
 import { syncRepo, type GitConfig } from "@/lib/rag/git";
 import { getFile } from "@/lib/storage";
+import { describeImage } from "@/lib/rag/vision";
+import { env } from "@/lib/env";
 
-const TEXT_EXT = new Set([
+export const TEXT_EXT = new Set([
   ".md", ".markdown", ".mdx", ".txt", ".html", ".htm", ".json", ".xml",
   ".yml", ".yaml", ".toml", ".csv", ".css", ".ts", ".tsx", ".js", ".jsx",
   ".php", ".py", ".sql", ".sh", ".ps1", ".svg", ".env.example",
@@ -22,6 +24,7 @@ const BATCH = 200;
 const clean = (t: string) => t.replace(/\u0000/g, "");
 
 type SourceConfig = Record<string, unknown> & Partial<GitConfig>;
+type Doc = { path: string; text: string; meta?: Record<string, unknown> };
 
 function isTextFile(p: string): boolean {
   const base = path.basename(p).toLowerCase();
@@ -139,9 +142,13 @@ async function storeRepoFiles(sourceId: string, dir: string, exclude?: string[])
 }
 
 /** Collect (path, text) docs for a source. */
-async function collectDocs(source: { id: string; type: string; config: string }): Promise<{ path: string; text: string }[]> {
+export async function collectDocs(
+  source: { id: string; type: string; config: string },
+  imageDescriber: typeof describeImage = describeImage,
+): Promise<{ docs: Doc[]; warnings: string[] }> {
   const cfg = JSON.parse(source.config || "{}") as SourceConfig;
-  const docs: { path: string; text: string }[] = [];
+  const docs: Doc[] = [];
+  const warnings: string[] = [];
 
   if (source.type === "file" && cfg.storageKey) {
     const buf = await getFile(String(cfg.storageKey));
@@ -154,6 +161,41 @@ async function collectDocs(source: { id: string; type: string; config: string })
     await assertLocalPath(fp, "file");
     const text = await readDoc(fp);
     if (text) docs.push({ path: fp, text });
+  } else if (source.type === "upload") {
+    const assets = await db.knowledgeAsset.findMany({
+      where: { sourceId: source.id },
+      orderBy: { createdAt: "asc" },
+    });
+    for (const asset of assets) {
+      const bytes = await getFile(asset.storageKey);
+      if (!bytes) throw new Error(`Geüpload bestand niet gevonden in opslag: ${asset.filename}`);
+
+      if (asset.contentType.startsWith("image/")) {
+        let caption = asset.caption;
+        if (!caption) {
+          try {
+            caption = (await imageDescriber(bytes, asset.contentType, asset.filename)).trim();
+            if (!caption) throw new Error("Het vision-model gaf geen beschrijving terug");
+            await db.knowledgeAsset.update({ where: { id: asset.id }, data: { caption } });
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            warnings.push(message.slice(0, 300));
+            caption = "";
+          }
+        }
+        docs.push({
+          path: asset.filename,
+          text: `Afbeelding: ${asset.filename}${caption ? `\n${caption}` : ""}`,
+          meta: { kind: "image", assetId: asset.id },
+        });
+      } else {
+        const raw = clean(new TextDecoder().decode(bytes));
+        docs.push({
+          path: asset.filename,
+          text: /\.html?$/i.test(asset.filename) ? htmlToText(raw) : raw,
+        });
+      }
+    }
   } else if (source.type === "folder") {
     const root = String(cfg.localPath ?? "");
     await assertLocalPath(root, "folder");
@@ -194,13 +236,18 @@ async function collectDocs(source: { id: string; type: string; config: string })
     }
   }
   const unique = new Set<string>();
-  return docs.filter((d) => d.text.trim() && !unique.has(d.text) && unique.add(d.text));
+  return {
+    docs: docs.filter((d) =>
+      d.text.trim() && (d.meta?.kind === "image" || (!unique.has(d.text) && unique.add(d.text)))
+    ),
+    warnings,
+  };
 }
 
 /** Sync a knowledge source: collect docs → chunk → embed → replace chunks. */
 export async function syncSource(sourceId: string): Promise<{ chunks: number; error?: string }> {
   const source = await db.knowledgeSource.findUnique({ where: { id: sourceId } });
-  if (!source) return { chunks: 0, error: "source not found" };
+  if (!source) return { chunks: 0, error: "Bron niet gevonden" };
 
   await db.knowledgeSource.update({
     where: { id: sourceId },
@@ -208,14 +255,15 @@ export async function syncSource(sourceId: string): Promise<{ chunks: number; er
   });
 
   try {
-    const docs = await collectDocs(source);
+    if (!env.openRouterKey) {
+      throw new Error("De OpenRouter API-sleutel ontbreekt. Stel OPENROUTER_API_KEY in en probeer opnieuw.");
+    }
+    const { docs, warnings } = await collectDocs(source);
     if (!docs.length) throw new Error("Geen inhoud gevonden — controleer de URL, het pad of de include-patronen.");
     const items = docs.flatMap((d) =>
-      chunkText(d.text).map((t) => ({ text: t, path: d.path }))
+      (d.meta?.kind === "image" ? [d.text] : chunkText(d.text))
+        .map((text) => ({ text, path: d.path, meta: d.meta }))
     );
-
-    // replace all chunks for this source
-    await db.knowledgeChunk.deleteMany({ where: { sourceId } });
 
     const vectors = await embedBatch(items.map((i) => i.text));
     const rows = items.map((it, i) => ({
@@ -223,14 +271,25 @@ export async function syncSource(sourceId: string): Promise<{ chunks: number; er
       path: it.path,
       text: it.text,
       embedding: toBuffer(vectors[i]),
+      meta: JSON.stringify(it.meta ?? {}),
     }));
-    for (let i = 0; i < rows.length; i += BATCH) {
-      await db.knowledgeChunk.createMany({ data: rows.slice(i, i + BATCH) });
-    }
+    await db.$transaction(async (tx) => {
+      await tx.knowledgeChunk.deleteMany({ where: { sourceId } });
+      for (let i = 0; i < rows.length; i += BATCH) {
+        await tx.knowledgeChunk.createMany({ data: rows.slice(i, i + BATCH) });
+      }
+    }, { timeout: 120_000 });
 
     await db.knowledgeSource.update({
       where: { id: sourceId },
-      data: { status: "ready", statusMsg: "", lastSyncAt: new Date(), chunkCount: items.length },
+      data: {
+        status: "ready",
+        statusMsg: warnings.length
+          ? `${warnings.length} afbeelding(en) zonder beschrijving: ${warnings[0]}`
+          : "",
+        lastSyncAt: new Date(),
+        chunkCount: items.length,
+      },
     });
     return { chunks: items.length };
   } catch (e) {

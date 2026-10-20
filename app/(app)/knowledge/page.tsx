@@ -15,7 +15,7 @@ export default async function KnowledgePage() {
     <div className="h-full overflow-auto p-6">
       <h1 className="mb-1 text-2xl font-bold">Kennisbank</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        Bronnen die agents via RAG doorzoeken: bestanden, websites (sitemap), git-repos en lokale mappen.
+        Bronnen die agents via RAG doorzoeken: geüploade bestanden en afbeeldingen, websites en git-repos.
       </p>
       <KnowledgeAdmin sources={sources} brands={brands} canEdit={!!admin} />
     </div>
