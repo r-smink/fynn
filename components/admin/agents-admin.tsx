@@ -15,6 +15,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { ModelPicker } from "@/components/chat/model-picker";
 
 type AgentRow = {
   id: string; name: string; description: string; icon: string; color: string;
@@ -160,7 +161,7 @@ export function AgentsAdmin({ agents, brands, sources, toolGroups, canEdit }: Pr
               </div>
               <div className="space-y-1">
                 <Label>Standaardmodel</Label>
-                <Input value={f.defaultModel} onChange={(e) => setF({ ...f, defaultModel: e.target.value })} placeholder="openai/gpt-5" list="models-dl" />
+                <ModelPicker value={f.defaultModel} onChange={(v) => setF({ ...f, defaultModel: v })} />
               </div>
             </div>
             <div className="space-y-1">

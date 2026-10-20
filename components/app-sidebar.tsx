@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bot, Building2, Database, FileText, BarChart3, Users,
+  Bot, Building2, Database, FileText, BarChart3, Users, Waypoints,
   MessageSquarePlus, MessagesSquare, Settings, LogOut, Sun, Moon, Monitor,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
@@ -21,6 +21,7 @@ const NAV = [
   { href: "/brands", label: "Brands", icon: Building2 },
   { href: "/knowledge", label: "Kennisbank", icon: Database },
   { href: "/templates", label: "Templates", icon: FileText },
+  { href: "/fusions", label: "Fusion", icon: Waypoints },
   { href: "/usage", label: "Usage", icon: BarChart3 },
   { href: "/users", label: "Gebruikers", icon: Users, admin: true },
   { href: "/settings", label: "Instellingen", icon: Settings, admin: true },

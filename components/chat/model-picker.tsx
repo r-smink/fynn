@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, RefreshCw, Waypoints } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
@@ -19,20 +19,39 @@ type Model = {
   modality: string;
 };
 
+type Fusion = {
+  id: string;
+  name: string;
+  leadModel: string;
+  sidekick1: string;
+  sidekick2: string;
+};
+
 export function ModelPicker({
-  value, onChange, isAdmin,
-}: { value: string; onChange: (id: string) => void; isAdmin?: boolean }) {
+  value, onChange, isAdmin, includeFusions = true,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  isAdmin?: boolean;
+  includeFusions?: boolean;
+}) {
   const [models, setModels] = useState<Model[]>([]);
+  const [fusions, setFusions] = useState<Fusion[]>([]);
   const [q, setQ] = useState("");
   const [syncing, setSyncing] = useState(false);
 
   async function load() {
     const res = await fetch("/api/models");
     if (res.ok) setModels((await res.json()).models);
+    if (includeFusions) {
+      const f = await fetch("/api/fusions");
+      if (f.ok) setFusions((await f.json()).fusions);
+    }
   }
   useEffect(() => {
     const t = setTimeout(load, 0);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function sync() {
@@ -59,14 +78,25 @@ export function ModelPicker({
     return [...g.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [filtered]);
 
+  const filteredFusions = useMemo(() => {
+    if (!includeFusions) return [];
+    const s = q.toLowerCase();
+    return fusions.filter((f) => !s || f.name.toLowerCase().includes(s));
+  }, [fusions, q, includeFusions]);
+
   const current = models.find((m) => m.id === value);
+  const currentFusion = value.startsWith("fusion:")
+    ? fusions.find((f) => `fusion:${f.id}` === value)
+    : undefined;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
           <Button variant="outline" size="sm" className="max-w-[280px] gap-1">
-            <span className="truncate">{current?.name || value || "Kies model"}</span>
+            <span className="truncate">
+              {currentFusion ? `⚡ ${currentFusion.name}` : current?.name || value || "Kies model"}
+            </span>
             <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
           </Button>
         }
@@ -86,6 +116,32 @@ export function ModelPicker({
           )}
         </div>
         <ScrollArea className="h-80">
+          {filteredFusions.length > 0 && (
+            <div>
+              <div className="sticky top-0 bg-popover px-3 py-1 text-xs font-semibold uppercase text-muted-foreground">
+                Fusion
+              </div>
+              {filteredFusions.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => onChange(`fusion:${f.id}`)}
+                  className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    {value === `fusion:${f.id}` ? (
+                      <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    ) : (
+                      <Waypoints className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                    {f.name}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {[f.leadModel, f.sidekick1, f.sidekick2].filter(Boolean).length} modellen
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
           {grouped.map(([provider, items]) => (
             <div key={provider}>
               <div className="sticky top-0 bg-popover px-3 py-1 text-xs font-semibold uppercase text-muted-foreground">
