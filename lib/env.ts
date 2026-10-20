@@ -17,6 +17,18 @@ export const env = {
   get portalPassword() {
     return process.env.FYNDABLE_WP_APP_PASSWORD || "";
   },
+  get wpSiteUrl() {
+    return (process.env.WP_SITE_URL || "https://fyndable.ai").replace(/\/$/, "");
+  },
+  get wpUser() {
+    return process.env.WP_USER || process.env.FYNDABLE_WP_USER || "";
+  },
+  get wpPassword() {
+    return process.env.WP_APP_PASSWORD || process.env.FYNDABLE_WP_APP_PASSWORD || "";
+  },
+  get cronSecret() {
+    return process.env.CRON_SECRET || "";
+  },
   get imageModel() {
     return process.env.IMAGE_MODEL || "google/gemini-2.5-flash-image";
   },
