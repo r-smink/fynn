@@ -132,12 +132,15 @@ export async function POST(req: Request) {
         createdAt: true,
       },
     });
-  } catch {
+  } catch (err) {
     await deleteFile(storageKey).catch(() => {});
     if (createdSource) {
       await db.knowledgeSource.delete({ where: { id: source.id } }).catch(() => {});
     }
-    return Response.json({ error: "Het bestand kon niet worden opgeslagen" }, { status: 500 });
+    console.error("knowledge upload failed", err);
+    return Response.json({
+      error: `Het bestand kon niet worden opgeslagen: ${err instanceof Error ? err.message : String(err)}`,
+    }, { status: 500 });
   }
 
   const syncResult = syncValue === "0" ? undefined : await syncSource(source.id);
