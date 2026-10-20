@@ -22,6 +22,11 @@ export async function putFile(key: string, data: Uint8Array, contentType: string
     });
     return;
   }
+  if (process.env.VERCEL) {
+    throw new Error(
+      "Blob-opslag is niet gekoppeld: BLOB_READ_WRITE_TOKEN ontbreekt in Vercel (Storage → Blob koppelen, daarna Redeploy)",
+    );
+  }
   const fp = localPath(key);
   await fs.mkdir(path.dirname(fp), { recursive: true });
   await fs.writeFile(fp, data);

@@ -57,7 +57,13 @@ export async function POST(request: Request) {
   }
 
   const key = `branding/logo-${variant}-${Date.now()}.${imageType.extension}`;
-  await putFile(key, bytes, file.type);
+  try {
+    await putFile(key, bytes, file.type);
+  } catch (err) {
+    return NextResponse.json({
+      error: `Logo kon niet worden opgeslagen: ${err instanceof Error ? err.message : String(err)}`,
+    }, { status: 500 });
+  }
   await db.setting.upsert({
     where: { key: `logo.${variant}` },
     create: { key: `logo.${variant}`, value: key },
