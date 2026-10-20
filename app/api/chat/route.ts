@@ -10,6 +10,9 @@ import { requireUser } from "@/lib/auth";
 import { buildSystemPrompt, buildTools, knowledgeSourceIdsFor, FALLBACK_MODEL } from "@/lib/agents";
 import { chatModel, openrouter } from "@/lib/openrouter";
 import { logUsage } from "@/lib/usage";
+import {
+  fusionIdFromModel, fusionLeadModel, isFusionModel, runSidekicks,
+} from "@/lib/fusion";
 
 export const maxDuration = 300;
 
@@ -71,6 +74,15 @@ export async function POST(req: Request) {
     }));
 
   const model = requestedModel || convo.model || agent?.defaultModel || FALLBACK_MODEL;
+
+  // Fusion-templates: model = "fusion:<id>" → lead + sidekick-modellen van de gebruiker
+  const fusion = isFusionModel(model)
+    ? await db.fusionTemplate.findFirst({
+        where: { id: fusionIdFromModel(model), userId: user.id },
+      })
+    : null;
+  const displayModel = fusion ? `Fusion · ${fusion.name}` : model;
+
   if (convo.model !== model) {
     await db.conversation.update({ where: { id: conversationId }, data: { model } });
   }
@@ -105,14 +117,18 @@ export async function POST(req: Request) {
     : [];
   const sourceIds = agent ? await knowledgeSourceIdsFor(agent, brandSources as never) : undefined;
 
-  const system = agent
+  let system = agent
     ? buildSystemPrompt({ ...agent, brand: agent.brand ?? brand })
     : "Je bent FYNN, een behulpzame AI-assistent. Antwoord in de taal van de gebruiker.";
+
+  if (fusion) {
+    system += await runSidekicks({ fusion, uiMessages, userId: user.id, conversationId });
+  }
 
   const tools = agent ? buildTools(agent, sourceIds) : {};
 
   const result = streamText({
-    model: chatModel(model),
+    model: fusion ? fusionLeadModel(fusion) : chatModel(model),
     system,
     messages: await convertToModelMessages(uiMessages),
     tools,
@@ -122,7 +138,7 @@ export async function POST(req: Request) {
       await logUsage({
         userId: user.id,
         conversationId,
-        model,
+        model: fusion?.leadModel ?? model,
         promptTokens: totalUsage?.inputTokens ?? 0,
         completionTokens: totalUsage?.outputTokens ?? 0,
       });
@@ -136,7 +152,7 @@ export async function POST(req: Request) {
 
   return result.toUIMessageStreamResponse({
     messageMetadata: ({ part }) => {
-      if (part.type === "finish") return { model };
+      if (part.type === "finish") return { model: displayModel };
       return undefined;
     },
     onFinish: async ({ responseMessage }) => {
@@ -146,7 +162,7 @@ export async function POST(req: Request) {
           conversationId,
           role: "assistant",
           parts: JSON.stringify(responseMessage.parts),
-          model,
+          model: displayModel,
           usage: JSON.stringify(responseMessage.metadata ?? {}),
         },
       });

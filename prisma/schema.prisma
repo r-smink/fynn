@@ -19,6 +19,7 @@ model User {
   createdAt     DateTime       @default(now())
   conversations Conversation[]
   usage         UsageEvent[]
+  fusions       FusionTemplate[]
 }
 
 model Brand {
@@ -166,6 +167,21 @@ model PromptTemplate {
   brandId   String?
   brand     Brand?   @relation(fields: [brandId], references: [id])
   createdAt DateTime @default(now())
+}
+
+model FusionTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String   @default("")
+  leadModel   String
+  leadEffort  String   @default("") // minimal | low | medium | high | xhigh — leeg = model-default
+  sidekick1   String   @default("")
+  sidekick2   String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
 }
 
 model UsageEvent {
