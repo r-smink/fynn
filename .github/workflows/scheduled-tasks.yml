@@ -1,0 +1,23 @@
+name: FYNN scheduled tasks
+
+# Roept elke 15 min /api/cron/run-due aan op productie. GitHub Actions schedule is
+# gratis en betrouwbaarder dan Vercel Hobby-cron (max 1x/dag).
+# Vereiste repo secrets:
+#   FYNN_APP_URL    — bijv. https://fynn.fyndable.ai
+#   CRON_SECRET     — dezelfde waarde als de CRON_SECRET env-var op Vercel
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run-due:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger due tasks
+        run: |
+          status=$(curl -s -o /tmp/fynn-cron.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.FYNN_APP_URL }}/api/cron/run-due")
+          cat /tmp/fynn-cron.json
+          [ "$status" = "200" ]

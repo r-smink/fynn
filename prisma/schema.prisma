@@ -20,6 +20,7 @@ model User {
   conversations Conversation[]
   usage         UsageEvent[]
   fusions       FusionTemplate[]
+  tasks         Task[]
 }
 
 model Brand {
@@ -57,6 +58,7 @@ model Agent {
   createdAt     DateTime       @default(now())
   sources       KnowledgeSource[]
   conversations Conversation[]
+  tasks         Task[]
 }
 
 model Conversation {
@@ -182,6 +184,40 @@ model FusionTemplate {
   createdAt   DateTime @default(now())
 
   @@index([userId])
+}
+
+model Task {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  agentId      String?
+  agent        Agent?    @relation(fields: [agentId], references: [id])
+  model        String    @default("") // openrouter id of "fusion:<id>" — leeg = agent-default
+  prompt       String
+  schedule     String    @default("") // cron-expressie; leeg = alleen handmatig
+  action       String    @default("chat_run") // chat_run | wordpress_post
+  actionConfig String    @default("{}") // JSON, o.a. {status: "draft"|"publish", categories, tags}
+  enabled      Boolean   @default(true)
+  lastRunAt    DateTime?
+  createdAt    DateTime  @default(now())
+  runs         TaskRun[]
+
+  @@index([userId])
+  @@index([enabled, lastRunAt])
+}
+
+model TaskRun {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  status    String   @default("running") // running | done | error
+  output    String   @default("")
+  resultUrl String   @default("") // bijv. link naar WP-draft
+  error     String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
 }
 
 model UsageEvent {
