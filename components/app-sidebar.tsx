@@ -4,14 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bot, Building2, Database, FileText, BarChart3, Users,
-  MessageSquarePlus, MessagesSquare, Settings, LogOut,
+  MessageSquarePlus, MessagesSquare, Settings, LogOut, Sun, Moon, Monitor,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { useTheme } from "next-themes";
+import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConversationList } from "@/components/conversation-list";
 import { Separator } from "@/components/ui/separator";
 import { isAdminRole, isSuperadmin } from "@/lib/roles";
+import { Logo } from "@/components/logo";
 
 const NAV = [
   { href: "/agents", label: "Agents", icon: Bot },
@@ -24,15 +27,27 @@ const NAV = [
   { href: "/all-chats", label: "Alle chats", icon: MessagesSquare, superadmin: true },
 ];
 
-export function AppSidebar({ userName, userRole }: { userName: string; userRole: string }) {
+const subscribeToMount = () => () => {};
+
+export function AppSidebar({
+  userName,
+  userRole,
+  logoLight,
+  logoDark,
+}: {
+  userName: string;
+  userRole: string;
+  logoLight: string;
+  logoDark: string;
+}) {
   const pathname = usePathname();
+  const { theme, setTheme } = useTheme();
+  const mounted = useSyncExternalStore(subscribeToMount, () => true, () => false);
+
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-sidebar">
-      <div className="flex items-center gap-2 px-4 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">
-          F
-        </div>
-        <span className="text-lg font-bold">FYNN</span>
+      <div className="flex h-16 items-center px-4 py-4">
+        <Logo logoLight={logoLight} logoDark={logoDark} className="h-8 max-w-full object-contain" />
       </div>
 
       <div className="px-3">
@@ -66,14 +81,40 @@ export function AppSidebar({ userName, userRole }: { userName: string; userRole:
       <div className="mt-auto border-t p-3">
         <div className="flex items-center justify-between">
           <span className="truncate text-sm text-muted-foreground">{userName}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            title="Uitloggen"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
+          <div className="flex shrink-0 items-center">
+            {mounted ? (
+              <>
+                {[
+                  { value: "light", label: "Licht", Icon: Sun },
+                  { value: "dark", label: "Donker", Icon: Moon },
+                  { value: "system", label: "Systeem", Icon: Monitor },
+                ].map(({ value, label, Icon }) => (
+                  <Button
+                    key={value}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title={label}
+                    aria-label={label}
+                    aria-pressed={theme === value}
+                    onClick={() => setTheme(value)}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </Button>
+                ))}
+              </>
+            ) : (
+              <div className="h-8 w-24" aria-hidden="true" />
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Uitloggen"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </aside>
