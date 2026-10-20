@@ -81,6 +81,8 @@ export async function POST(req: Request) {
         where: { id: fusionIdFromModel(model), userId: user.id },
       })
     : null;
+  // Verwijderde/vreemde fusion-template → terugvallen op het standaardmodel
+  const effectiveModel = isFusionModel(model) && !fusion ? FALLBACK_MODEL : model;
   const displayModel = fusion ? `Fusion · ${fusion.name}` : model;
 
   if (convo.model !== model) {
@@ -128,7 +130,7 @@ export async function POST(req: Request) {
   const tools = agent ? buildTools(agent, sourceIds) : {};
 
   const result = streamText({
-    model: fusion ? fusionLeadModel(fusion) : chatModel(model),
+    model: fusion ? fusionLeadModel(fusion) : chatModel(effectiveModel),
     system,
     messages: await convertToModelMessages(uiMessages),
     tools,
@@ -138,7 +140,7 @@ export async function POST(req: Request) {
       await logUsage({
         userId: user.id,
         conversationId,
-        model: fusion?.leadModel ?? model,
+        model: fusion?.leadModel ?? effectiveModel,
         promptTokens: totalUsage?.inputTokens ?? 0,
         completionTokens: totalUsage?.outputTokens ?? 0,
       });
