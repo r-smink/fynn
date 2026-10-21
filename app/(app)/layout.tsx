@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { AppSidebar } from "@/components/app-sidebar";
+import { MobileNav } from "@/components/mobile-nav";
 import { getBranding } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         logoLight={branding.logoLight}
         logoDark={branding.logoDark}
       />
-      <main className="flex-1 overflow-hidden">{children}</main>
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <MobileNav
+          userName={user.name || user.email}
+          userRole={user.role}
+          logoLight={branding.logoLight}
+          logoDark={branding.logoDark}
+        />
+        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+      </main>
     </div>
   );
 }

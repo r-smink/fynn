@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
@@ -12,6 +12,25 @@ const outfit = Outfit({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata: Metadata = {
   title: "FYNN",
   description: "FYNN — whitelabel AI chatplatform",
+  appleWebApp: {
+    capable: true,
+    title: "FYNN",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: "/api/branding/app-icon",
+    apple: "/api/branding/app-icon",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#132A38" },
+  ],
 };
 
 async function brandVars(): Promise<Record<string, string>> {

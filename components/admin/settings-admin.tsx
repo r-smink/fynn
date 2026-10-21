@@ -16,7 +16,7 @@ type Props = {
   openRouterConfigured: boolean; portalConfigured: boolean;
   imageModel: string; imageModelIsDefault: boolean;
   embeddingModel: string; embeddingModelIsDefault: boolean;
-  branding: { logoLight: string; logoDark: string; defaultTheme: DefaultTheme };
+  branding: { logoLight: string; logoDark: string; defaultTheme: DefaultTheme; appName: string; appIcon: string };
 };
 
 function Row({ label, ok, hint }: { label: string; ok: boolean; hint: string }) {
@@ -32,11 +32,13 @@ function Row({ label, ok, hint }: { label: string; ok: boolean; hint: string }) 
 export function SettingsAdmin(p: Props) {
   const [syncing, setSyncing] = useState(false);
   const [defaultTheme, setDefaultTheme] = useState(p.branding.defaultTheme);
+  const [appName, setAppName] = useState(p.branding.appName);
   const lightFileRef = useRef<HTMLInputElement>(null);
   const darkFileRef = useRef<HTMLInputElement>(null);
+  const iconFileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  async function uploadLogo(variant: "light" | "dark", file?: File) {
+  async function uploadLogo(variant: "light" | "dark" | "app-icon", file?: File) {
     if (!file) return;
     const form = new FormData();
     form.set("file", file);
@@ -51,7 +53,7 @@ export function SettingsAdmin(p: Props) {
     router.refresh();
   }
 
-  async function restoreLogo(variant: "light" | "dark") {
+  async function restoreLogo(variant: "light" | "dark" | "app-icon") {
     const res = await fetch(`/api/settings/logo?variant=${variant}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
@@ -131,6 +133,57 @@ export function SettingsAdmin(p: Props) {
               </div>
             </div>
           ))}
+        </div>
+        <div className="mt-5 border-t pt-4">
+          <h3 className="mb-1 text-sm font-semibold">PWA (homescreen-app)</h3>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Icoon en naam die verschijnen als gebruikers FYNN op hun telefoonhomescreen installeren.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">App-icoon</p>
+              <div className="flex h-20 items-center justify-center rounded-md bg-muted p-3">
+                <Image src={p.branding.appIcon} alt="App-icoon" width={64} height={64} unoptimized className="max-h-14 rounded-xl object-contain" />
+              </div>
+              <Input
+                ref={iconFileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(event) => {
+                  void uploadLogo("app-icon", event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => iconFileRef.current?.click()}>Upload</Button>
+                <Button variant="ghost" size="sm" onClick={() => void restoreLogo("app-icon")}>Standaard herstellen</Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Vierkant, minimaal 512×512 (bijv. Hello_Fynn.jpg).</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">App-naam</p>
+              <div className="flex gap-2">
+                <Input value={appName} onChange={(e) => setAppName(e.target.value)} maxLength={40} />
+                <Button
+                  variant="outline" size="sm"
+                  onClick={async () => {
+                    const res = await fetch("/api/settings", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ appName }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) toast.error(data.error ?? "App-naam opslaan is mislukt");
+                    else { toast.success("App-naam opgeslagen"); router.refresh(); }
+                  }}
+                >
+                  Opslaan
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Verschijnt onder het icoon op de homescreen.</p>
+            </div>
+          </div>
         </div>
         <div className="mt-5 max-w-xs space-y-2">
           <label className="text-sm font-medium">Standaardthema</label>
