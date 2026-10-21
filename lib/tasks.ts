@@ -10,16 +10,30 @@ import { wpConfigured, wpCreatePost } from "@/lib/wordpress";
 export const TASK_ACTIONS = ["chat_run", "wordpress_post"] as const;
 export type TaskAction = (typeof TASK_ACTIONS)[number];
 
+const NL_PARTS = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Europe/Amsterdam",
+  minute: "numeric",
+  hour: "numeric",
+  hourCycle: "h23",
+  day: "numeric",
+  month: "numeric",
+  weekday: "short",
+});
+const NL_WEEKDAYS: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
 // Minimale 5-veld cron-matcher: `*`, `*/n`, `a`, `a,b`, `a-b`.
+// Tijden worden geïnterpreteerd in Europe/Amsterdam (de server draait UTC).
 export function cronMatches(expr: string, date: Date): boolean {
   const fields = expr.trim().split(/\s+/);
   if (fields.length !== 5) return false;
+  const parts: Record<string, string> = {};
+  for (const p of NL_PARTS.formatToParts(date)) parts[p.type] = p.value;
   const vals = [
-    date.getMinutes(),
-    date.getHours(),
-    date.getDate(),
-    date.getMonth() + 1,
-    date.getDay(),
+    parseInt(parts.minute, 10),
+    parseInt(parts.hour, 10),
+    parseInt(parts.day, 10),
+    parseInt(parts.month, 10),
+    NL_WEEKDAYS[parts.weekday] ?? date.getDay(),
   ];
   const max = [59, 23, 31, 12, 7];
   return fields.every((f, i) => cronFieldMatches(f, vals[i], max[i]));

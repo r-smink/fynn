@@ -30,14 +30,15 @@ const IMAGE_TYPES: Record<string, { extension: string; signature: (bytes: Uint8A
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
-const VARIANTS = ["light", "dark", "app-icon"] as const;
+const VARIANTS = ["light", "dark", "app-icon", "favicon"] as const;
 type Variant = (typeof VARIANTS)[number];
 
 function validVariant(value: FormDataEntryValue | null): value is Variant {
   return VARIANTS.includes(value as Variant);
 }
 
-const settingKey = (variant: Variant) => (variant === "app-icon" ? "app.icon" : `logo.${variant}`);
+const settingKey = (variant: Variant) =>
+  variant === "app-icon" ? "app.icon" : variant === "favicon" ? "app.favicon" : `logo.${variant}`;
 
 export async function POST(request: Request) {
   const admin = await requireAdmin();
@@ -78,9 +79,12 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     success: true,
-    url: variant === "app-icon"
-      ? `/api/branding/app-icon?v=${encodeURIComponent(key)}`
-      : `/api/branding/logo/${variant}?v=${encodeURIComponent(key)}`,
+    url:
+      variant === "app-icon"
+        ? `/api/branding/app-icon?v=${encodeURIComponent(key)}`
+        : variant === "favicon"
+          ? `/api/branding/favicon?v=${encodeURIComponent(key)}`
+          : `/api/branding/logo/${variant}?v=${encodeURIComponent(key)}`,
   });
 }
 

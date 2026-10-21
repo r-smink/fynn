@@ -13,16 +13,18 @@ export async function getBranding(): Promise<{
   defaultTheme: DefaultTheme;
   appName: string;
   appIcon: string;
+  favicon: string;
 }> {
   try {
     const settings = await db.setting.findMany({
-      where: { key: { in: ["logo.light", "logo.dark", "theme.default", "app.name", "app.icon"] } },
+      where: { key: { in: ["logo.light", "logo.dark", "theme.default", "app.name", "app.icon", "app.favicon"] } },
     });
     const values = new Map(settings.map(({ key, value }) => [key, value]));
     const lightKey = values.get("logo.light");
     const darkKey = values.get("logo.dark");
     const theme = values.get("theme.default");
     const iconKey = values.get("app.icon");
+    const faviconKey = values.get("app.favicon");
 
     return {
       logoLight: lightKey
@@ -36,6 +38,9 @@ export async function getBranding(): Promise<{
       appIcon: iconKey
         ? `/api/branding/app-icon?v=${encodeURIComponent(iconKey)}`
         : "/icon.png",
+      favicon: faviconKey
+        ? `/api/branding/favicon?v=${encodeURIComponent(faviconKey)}`
+        : "/api/branding/favicon",
     };
   } catch {
     return {
@@ -44,6 +49,7 @@ export async function getBranding(): Promise<{
       defaultTheme: "system",
       appName: "FYNN",
       appIcon: "/icon.png",
+      favicon: "/api/branding/favicon",
     };
   }
 }

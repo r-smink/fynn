@@ -16,7 +16,7 @@ type Props = {
   openRouterConfigured: boolean; portalConfigured: boolean;
   imageModel: string; imageModelIsDefault: boolean;
   embeddingModel: string; embeddingModelIsDefault: boolean;
-  branding: { logoLight: string; logoDark: string; defaultTheme: DefaultTheme; appName: string; appIcon: string };
+  branding: { logoLight: string; logoDark: string; defaultTheme: DefaultTheme; appName: string; appIcon: string; favicon: string };
 };
 
 function Row({ label, ok, hint }: { label: string; ok: boolean; hint: string }) {
@@ -36,9 +36,10 @@ export function SettingsAdmin(p: Props) {
   const lightFileRef = useRef<HTMLInputElement>(null);
   const darkFileRef = useRef<HTMLInputElement>(null);
   const iconFileRef = useRef<HTMLInputElement>(null);
+  const faviconFileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  async function uploadLogo(variant: "light" | "dark" | "app-icon", file?: File) {
+  async function uploadLogo(variant: "light" | "dark" | "app-icon" | "favicon", file?: File) {
     if (!file) return;
     const form = new FormData();
     form.set("file", file);
@@ -53,7 +54,7 @@ export function SettingsAdmin(p: Props) {
     router.refresh();
   }
 
-  async function restoreLogo(variant: "light" | "dark" | "app-icon") {
+  async function restoreLogo(variant: "light" | "dark" | "app-icon" | "favicon") {
     const res = await fetch(`/api/settings/logo?variant=${variant}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
@@ -160,6 +161,27 @@ export function SettingsAdmin(p: Props) {
                 <Button variant="ghost" size="sm" onClick={() => void restoreLogo("app-icon")}>Standaard herstellen</Button>
               </div>
               <p className="text-xs text-muted-foreground">Vierkant, minimaal 512×512 (bijv. Hello_Fynn.jpg).</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Favicon</p>
+              <div className="flex h-20 items-center justify-center rounded-md bg-muted p-3">
+                <Image src={p.branding.favicon} alt="Favicon" width={32} height={32} unoptimized className="h-8 w-8 rounded object-contain" />
+              </div>
+              <Input
+                ref={faviconFileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(event) => {
+                  void uploadLogo("favicon", event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => faviconFileRef.current?.click()}>Upload</Button>
+                <Button variant="ghost" size="sm" onClick={() => void restoreLogo("favicon")}>Standaard herstellen</Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Het tabblad-icoon in de browser (PNG/JPEG/WebP).</p>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium">App-naam</p>
