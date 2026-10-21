@@ -14,8 +14,14 @@ export async function GET(req: Request) {
     req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
     new URL(req.url).searchParams.get("secret") ??
     "";
-  if (!env.cronSecret || provided !== env.cronSecret) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!env.cronSecret) {
+    return Response.json(
+      { error: "CRON_SECRET ontbreekt op de server (Vercel env var niet gezet of nog niet gedeployed)" },
+      { status: 500 },
+    );
+  }
+  if (provided !== env.cronSecret) {
+    return Response.json({ error: "Unauthorized (secret komt niet overeen)" }, { status: 401 });
   }
 
   const now = new Date();
