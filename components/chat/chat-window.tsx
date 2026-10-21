@@ -112,7 +112,7 @@ export function ChatWindow({
   return (
     <div className="flex h-full flex-col">
       {/* header */}
-      <div className="flex items-center gap-2 border-b px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
         <AgentPicker value={agentId} onChange={changeAgent} />
         <ModelPicker value={model} onChange={changeModel} isAdmin={isAdmin} />
       </div>

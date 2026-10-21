@@ -30,9 +30,15 @@ const IMAGE_TYPES: Record<string, { extension: string; signature: (bytes: Uint8A
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
-function validVariant(value: FormDataEntryValue | null): value is "light" | "dark" {
-  return value === "light" || value === "dark";
+const VARIANTS = ["light", "dark", "app-icon", "favicon"] as const;
+type Variant = (typeof VARIANTS)[number];
+
+function validVariant(value: FormDataEntryValue | null): value is Variant {
+  return VARIANTS.includes(value as Variant);
 }
+
+const settingKey = (variant: Variant) =>
+  variant === "app-icon" ? "app.icon" : variant === "favicon" ? "app.favicon" : `logo.${variant}`;
 
 export async function POST(request: Request) {
   const admin = await requireAdmin();
@@ -64,15 +70,21 @@ export async function POST(request: Request) {
       error: `Logo kon niet worden opgeslagen: ${err instanceof Error ? err.message : String(err)}`,
     }, { status: 500 });
   }
+  const sk = settingKey(variant);
   await db.setting.upsert({
-    where: { key: `logo.${variant}` },
-    create: { key: `logo.${variant}`, value: key },
+    where: { key: sk },
+    create: { key: sk, value: key },
     update: { value: key },
   });
 
   return NextResponse.json({
     success: true,
-    url: `/api/branding/logo/${variant}?v=${encodeURIComponent(key)}`,
+    url:
+      variant === "app-icon"
+        ? `/api/branding/app-icon?v=${encodeURIComponent(key)}`
+        : variant === "favicon"
+          ? `/api/branding/favicon?v=${encodeURIComponent(key)}`
+          : `/api/branding/logo/${variant}?v=${encodeURIComponent(key)}`,
   });
 }
 
@@ -81,10 +93,10 @@ export async function DELETE(request: Request) {
   if (!admin) return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
 
   const variant = new URL(request.url).searchParams.get("variant");
-  if (variant !== "light" && variant !== "dark") {
+  if (!validVariant(variant)) {
     return NextResponse.json({ error: "Ongeldige logovariant" }, { status: 400 });
   }
 
-  await db.setting.deleteMany({ where: { key: `logo.${variant}` } });
+  await db.setting.deleteMany({ where: { key: settingKey(variant) } });
   return NextResponse.json({ success: true });
 }

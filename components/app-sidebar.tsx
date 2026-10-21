@@ -31,7 +31,7 @@ const NAV = [
 
 const subscribeToMount = () => () => {};
 
-export function AppSidebar({
+export function SidebarContent({
   userName,
   userRole,
   logoLight,
@@ -47,7 +47,7 @@ export function AppSidebar({
   const mounted = useSyncExternalStore(subscribeToMount, () => true, () => false);
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-sidebar">
+    <div className="flex h-full flex-col">
       <div className="flex h-16 items-center px-4 py-4">
         <Logo logoLight={logoLight} logoDark={logoDark} className="h-8 max-w-full object-contain" />
       </div>
@@ -119,6 +119,19 @@ export function AppSidebar({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function AppSidebar(props: {
+  userName: string;
+  userRole: string;
+  logoLight: string;
+  logoDark: string;
+}) {
+  return (
+    <aside className="hidden h-screen w-64 shrink-0 flex-col border-r bg-sidebar md:flex">
+      <SidebarContent {...props} />
     </aside>
   );
 }

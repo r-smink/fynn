@@ -236,7 +236,8 @@ export function TasksAdmin({ tasks, agents }: { tasks: Task[]; agents: Agent[] }
                 placeholder="0 9 * * 1  →  elke maandag 09:00"
               />
               <p className="text-xs text-muted-foreground">
-                5 velden: minuut uur dag-maand maand dag-week. Voorbeelden: <code>0 9 * * 1</code> (ma 09:00),
+                Tijden in Amsterdam-tijd (CET/CEST). 5 velden: minuut uur dag-maand maand dag-week.
+                Voorbeelden: <code>0 9 * * 1</code> (ma 09:00),
                 <code> 0 8 * * *</code> (dagelijks 08:00), <code>0 9 1 * *</code> (1e van de maand).
               </p>
             </div>
