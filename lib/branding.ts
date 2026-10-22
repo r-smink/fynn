@@ -11,13 +11,14 @@ export async function getBranding(): Promise<{
   logoLight: string;
   logoDark: string;
   defaultTheme: DefaultTheme;
+  siteTitle: string;
   appName: string;
   appIcon: string;
   favicon: string;
 }> {
   try {
     const settings = await db.setting.findMany({
-      where: { key: { in: ["logo.light", "logo.dark", "theme.default", "app.name", "app.icon", "app.favicon"] } },
+      where: { key: { in: ["logo.light", "logo.dark", "theme.default", "site.title", "app.name", "app.icon", "app.favicon"] } },
     });
     const values = new Map(settings.map(({ key, value }) => [key, value]));
     const lightKey = values.get("logo.light");
@@ -34,6 +35,7 @@ export async function getBranding(): Promise<{
         ? `/api/branding/logo/dark?v=${encodeURIComponent(darkKey)}`
         : DEFAULT_LOGOS.dark,
       defaultTheme: theme === "light" || theme === "dark" ? theme : "system",
+      siteTitle: values.get("site.title")?.trim() || values.get("app.name")?.trim() || "FYNN",
       appName: values.get("app.name")?.trim() || "FYNN",
       appIcon: iconKey
         ? `/api/branding/app-icon?v=${encodeURIComponent(iconKey)}`
@@ -47,6 +49,7 @@ export async function getBranding(): Promise<{
       logoLight: DEFAULT_LOGOS.light,
       logoDark: DEFAULT_LOGOS.dark,
       defaultTheme: "system",
+      siteTitle: "FYNN",
       appName: "FYNN",
       appIcon: "/icon.png",
       favicon: "/api/branding/favicon",

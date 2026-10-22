@@ -16,7 +16,7 @@ type Props = {
   openRouterConfigured: boolean; portalConfigured: boolean;
   imageModel: string; imageModelIsDefault: boolean;
   embeddingModel: string; embeddingModelIsDefault: boolean;
-  branding: { logoLight: string; logoDark: string; defaultTheme: DefaultTheme; appName: string; appIcon: string; favicon: string };
+  branding: { logoLight: string; logoDark: string; defaultTheme: DefaultTheme; siteTitle: string; appName: string; appIcon: string; favicon: string };
 };
 
 function Row({ label, ok, hint }: { label: string; ok: boolean; hint: string }) {
@@ -32,6 +32,7 @@ function Row({ label, ok, hint }: { label: string; ok: boolean; hint: string }) 
 export function SettingsAdmin(p: Props) {
   const [syncing, setSyncing] = useState(false);
   const [defaultTheme, setDefaultTheme] = useState(p.branding.defaultTheme);
+  const [siteTitle, setSiteTitle] = useState(p.branding.siteTitle);
   const [appName, setAppName] = useState(p.branding.appName);
   const lightFileRef = useRef<HTMLInputElement>(null);
   const darkFileRef = useRef<HTMLInputElement>(null);
@@ -93,6 +94,17 @@ export function SettingsAdmin(p: Props) {
     router.refresh();
   }
 
+  async function saveSiteTitle() {
+    const res = await fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ siteTitle }),
+    });
+    const data = await res.json();
+    if (!res.ok) toast.error(data.error ?? "Sitetitel opslaan is mislukt");
+    else { toast.success("Sitetitel opgeslagen"); router.refresh(); }
+  }
+
   return (
     <div className="grid max-w-2xl gap-4">
       <Card className="p-4">
@@ -109,10 +121,18 @@ export function SettingsAdmin(p: Props) {
       <Card className="p-4">
         <h2 className="mb-3 font-semibold">Branding &amp; thema</h2>
         <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 sm:col-span-2">
+            <p className="text-sm font-medium">Sitetitel</p>
+            <div className="flex gap-2">
+              <Input value={siteTitle} onChange={(e) => setSiteTitle(e.target.value)} maxLength={80} />
+              <Button variant="outline" size="sm" onClick={() => void saveSiteTitle()}>Opslaan</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">De titel in het browsertabblad en de paginametadata.</p>
+          </div>
           {([
             { variant: "light", label: "Licht logo", src: p.branding.logoLight, ref: lightFileRef, preview: "bg-white" },
             { variant: "dark", label: "Donker logo", src: p.branding.logoDark, ref: darkFileRef, preview: "bg-[#132A38]" },
-          ] as const).map(({ variant, label, src, ref, preview }) => (
+            ] as const).map(({ variant, label, src, ref, preview }) => (
             <div key={variant} className="space-y-2">
               <p className="text-sm font-medium">{label}</p>
               <div className={`flex h-20 items-center justify-center rounded-md p-3 ${preview}`}>
@@ -203,7 +223,7 @@ export function SettingsAdmin(p: Props) {
                   Opslaan
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">Verschijnt onder het icoon op de homescreen.</p>
+              <p className="text-xs text-muted-foreground">Verschijnt onder het icoon op de homescreen; dit staat los van de sitetitel.</p>
             </div>
           </div>
         </div>
