@@ -17,6 +17,8 @@ model User {
   passwordHash  String
   role          String         @default("member") // admin | member
   createdAt     DateTime       @default(now())
+  brandId       String?
+  brand         Brand?         @relation(fields: [brandId], references: [id], onDelete: SetNull)
   conversations Conversation[]
   usage         UsageEvent[]
   fusions       FusionTemplate[]
@@ -38,6 +40,7 @@ model Brand {
   sources       KnowledgeSource[]
   conversations Conversation[]
   templates     PromptTemplate[]
+  users         User[]
 }
 
 model Agent {

@@ -1,9 +1,11 @@
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TasksAdmin } from "@/components/tasks-admin";
+import { userBrandScope } from "@/lib/scope";
 
 export default async function TasksPage() {
   const user = await requireUser();
+  const scope = user ? await userBrandScope(user) : null;
   const [tasks, agents] = await Promise.all([
     db.task.findMany({
       where: { userId: user!.id },
@@ -13,7 +15,11 @@ export default async function TasksPage() {
         runs: { orderBy: { createdAt: "desc" }, take: 5 },
       },
     }),
-    db.agent.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.agent.findMany({
+      where: scope ? { brandId: scope } : {},
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
   return (
     <div className="h-full overflow-auto p-6">
