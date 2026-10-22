@@ -1,10 +1,13 @@
 import { db } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/auth";
+import { userBrandScope } from "@/lib/scope";
 
 export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const scope = await userBrandScope(user);
   const templates = await db.promptTemplate.findMany({
+    where: scope ? { brandId: scope } : {},
     orderBy: [{ category: "asc" }, { title: "asc" }],
     include: { brand: { select: { id: true, name: true } } },
   });

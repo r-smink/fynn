@@ -27,6 +27,8 @@ type Task = {
   name: string;
   agentId: string | null;
   agent?: { id: string; name: string } | null;
+  brandId?: string | null;
+  brand?: { id: string; name: string } | null;
   model: string;
   prompt: string;
   schedule: string;
@@ -46,10 +48,15 @@ const ACTIONS = [
 
 const empty = {
   name: "", agentId: "", model: "", prompt: "", schedule: "",
-  action: "chat_run", wpStatus: "draft", enabled: true,
+  action: "chat_run", wpStatus: "draft", enabled: true, brandId: "",
 };
 
-export function TasksAdmin({ tasks, agents }: { tasks: Task[]; agents: Agent[] }) {
+export function TasksAdmin({
+  tasks, agents, brands, isAdmin,
+}: {
+  tasks: Task[]; agents: Agent[];
+  brands: { id: string; name: string }[]; isAdmin: boolean;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -64,6 +71,7 @@ export function TasksAdmin({ tasks, agents }: { tasks: Task[]; agents: Agent[] }
       name: t.name, agentId: t.agentId ?? "", model: t.model, prompt: t.prompt,
       schedule: t.schedule, action: t.action,
       wpStatus: cfg.status ?? "draft", enabled: t.enabled,
+      brandId: t.brandId ?? "",
     });
     setOpen(true);
   }
@@ -76,6 +84,7 @@ export function TasksAdmin({ tasks, agents }: { tasks: Task[]; agents: Agent[] }
         name: f.name, agentId: f.agentId || null, model: f.model, prompt: f.prompt,
         schedule: f.schedule, action: f.action, enabled: f.enabled,
         actionConfig: f.action === "wordpress_post" ? { status: f.wpStatus } : {},
+        ...(isAdmin ? { brandId: f.brandId || null } : {}),
       }),
     });
     setOpen(false);
@@ -133,6 +142,7 @@ export function TasksAdmin({ tasks, agents }: { tasks: Task[]; agents: Agent[] }
                 <Badge variant="secondary">{ACTIONS.find((a) => a.value === t.action)?.label ?? t.action}</Badge>
                 {t.schedule && <Badge variant="outline">cron: {t.schedule}</Badge>}
                 {t.agent && <Badge variant="outline">{t.agent.name}</Badge>}
+                {t.brand && <Badge variant="outline">{t.brand.name}</Badge>}
                 {t.model && <Badge variant="outline">{t.model}</Badge>}
               </div>
               <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{t.prompt}</p>
@@ -250,6 +260,17 @@ export function TasksAdmin({ tasks, agents }: { tasks: Task[]; agents: Agent[] }
                 placeholder="Schrijf een blogpost over … voor fyndable.ai, gericht op …"
               />
             </div>
+            {isAdmin && (
+              <div className="space-y-1">
+                <Label>Brand (gedeeld binnen deze company)</Label>
+                <Select value={f.brandId} onValueChange={(v) => setF({ ...f, brandId: v ?? "" })}>
+                  <SelectTrigger><SelectValue placeholder="Alleen voor mij" /></SelectTrigger>
+                  <SelectContent>
+                    {brands.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Switch checked={f.enabled} onCheckedChange={(v) => setF({ ...f, enabled: v })} />
               <Label>Actief</Label>

@@ -10,6 +10,7 @@ import { requireUser } from "@/lib/auth";
 import { buildSystemPrompt, buildTools, knowledgeSourceIdsFor, FALLBACK_MODEL } from "@/lib/agents";
 import { chatModel, openrouter } from "@/lib/openrouter";
 import { logUsage } from "@/lib/usage";
+import { userBrandScope } from "@/lib/scope";
 import {
   fusionIdFromModel, fusionLeadModel, isFusionModel, runSidekicks,
 } from "@/lib/fusion";
@@ -63,15 +64,25 @@ export async function POST(req: Request) {
   });
   if (!convo) return Response.json({ error: "Gesprek niet gevonden" }, { status: 404 });
 
+  // Brand-scoping: gekoppelde members mogen alleen agents van hun eigen brand gebruiken
+  const scope = await userBrandScope(user);
+  if (scope && convo.agent && convo.agent.brandId !== scope) {
+    return Response.json({ error: "Geen toegang tot deze agent" }, { status: 403 });
+  }
+
   const agent =
     convo.agent ??
     (agentId
       ? await db.agent.findUnique({ where: { id: agentId }, include: { brand: true, sources: true } })
       : null) ??
     (await db.agent.findFirst({
-      where: { isDefault: true },
+      where: { isDefault: true, ...(scope ? { brandId: scope } : {}) },
       include: { brand: true, sources: true },
     }));
+
+  if (scope && agent && agent.brandId !== scope) {
+    return Response.json({ error: "Geen toegang tot deze agent" }, { status: 403 });
+  }
 
   const model = requestedModel || convo.model || agent?.defaultModel || FALLBACK_MODEL;
 

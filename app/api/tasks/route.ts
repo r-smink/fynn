@@ -1,12 +1,14 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { TASK_ACTIONS } from "@/lib/tasks";
+import { isAdminRole } from "@/lib/roles";
+import { userBrandScope, visibleOwnedWhere } from "@/lib/scope";
 
 export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const tasks = await db.task.findMany({
-    where: { userId: user.id },
+    where: await visibleOwnedWhere(user),
     orderBy: { name: "asc" },
     include: {
       agent: { select: { id: true, name: true } },
@@ -23,9 +25,11 @@ export async function POST(req: Request) {
   if (!data.name?.trim() || !data.prompt?.trim()) {
     return Response.json({ error: "Naam en prompt zijn vereist" }, { status: 400 });
   }
+  const scope = await userBrandScope(user);
   const task = await db.task.create({
     data: {
       userId: user.id,
+      brandId: scope ?? (isAdminRole(user.role) && data.brandId ? data.brandId : null),
       name: data.name.trim(),
       agentId: data.agentId || null,
       model: data.model ?? "",

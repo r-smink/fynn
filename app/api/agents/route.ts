@@ -1,11 +1,14 @@
 import { db } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { TOOL_GROUPS } from "@/lib/agents";
+import { userBrandScope } from "@/lib/scope";
 
 export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const scope = await userBrandScope(user);
   const agents = await db.agent.findMany({
+    where: scope ? { brandId: scope } : {},
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: { brand: true, sources: { select: { id: true, name: true } } },
   });

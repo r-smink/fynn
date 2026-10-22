@@ -7,7 +7,10 @@ export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return Response.json({ error: "Forbidden" }, { status: 403 });
   const users = await db.user.findMany({
-    select: { id: true, email: true, name: true, role: true, createdAt: true },
+    select: {
+      id: true, email: true, name: true, role: true, createdAt: true,
+      brandId: true, brand: { select: { id: true, name: true } },
+    },
     orderBy: { createdAt: "asc" },
   });
   return Response.json({ users });
@@ -16,8 +19,8 @@ export async function GET() {
 export async function POST(req: Request) {
   const admin = await requireAdmin();
   if (!admin) return Response.json({ error: "Forbidden" }, { status: 403 });
-  const { email, name, password, role } = (await req.json()) as {
-    email: string; name: string; password: string; role?: string;
+  const { email, name, password, role, brandId } = (await req.json()) as {
+    email: string; name: string; password: string; role?: string; brandId?: string | null;
   };
   if (!email || !password || !name) {
     return Response.json({ error: "email, naam en wachtwoord zijn vereist" }, { status: 400 });
@@ -34,6 +37,8 @@ export async function POST(req: Request) {
       name,
       passwordHash: await bcrypt.hash(password, 12),
       role: newRole,
+      // Brand koppelen mag alleen een superadmin
+      brandId: isSuperadmin(admin.role) && brandId ? brandId : null,
     },
     select: { id: true, email: true, name: true, role: true },
   });
