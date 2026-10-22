@@ -49,7 +49,9 @@ naar een bestaande Postgres. (`RUN_SEED=1` om bij eerste start te seeden.)
    DATABASE_URL="<postgres://-url>" npx prisma migrate deploy
    DATABASE_URL="<postgres://-url>" SEED_ADMIN_PASSWORD="<sterk-wachtwoord>" npx prisma db seed
    ```
-   Draai `migrate deploy` opnieuw na elke nieuwe migratie.
+   Daarna draait Vercel nieuwe migraties automatisch via het `vercel-build`-script
+   (`prisma migrate deploy` vóór `next build`; bij een mislukte migratie faalt de build en blijft
+   de vorige deployment live). Let op: preview-builds migreren de database van hun eigen env.
 6. Domein `fynn.fyndable.ai` toevoegen onder Settings → Domains.
 
 Beperkingen op Vercel: git-syncs moeten binnen de max. functieduur passen (`maxDuration`
