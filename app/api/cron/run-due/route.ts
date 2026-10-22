@@ -1,13 +1,14 @@
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { runTask, taskIsDue } from "@/lib/tasks";
+import { purgeExpiredConversations } from "@/lib/retention";
 
 export const maxDuration = 300;
 
 /**
  * Wordt door een externe scheduler (GitHub Actions / Vercel Cron) aangeroepen.
  * Beveiligd via `Authorization: Bearer <CRON_SECRET>` of ?secret=<CRON_SECRET>.
- * Voert maximaal 10 due tasks per aanroep uit (Hobby maxDuration).
+ * Voert maximaal 10 due tasks per aanroep uit (Hobby maxDuration) en ruimt verlopen gesprekken op.
  */
 export async function GET(req: Request) {
   const provided =
@@ -24,6 +25,8 @@ export async function GET(req: Request) {
     return Response.json({ error: "Unauthorized (secret komt niet overeen)" }, { status: 401 });
   }
 
+  const purged = await purgeExpiredConversations();
+
   const now = new Date();
   const tasks = await db.task.findMany({
     where: { enabled: true, NOT: { schedule: "" } },
@@ -36,5 +39,5 @@ export async function GET(req: Request) {
     const run = await runTask(t.id);
     results.push({ taskId: t.id, name: t.name, status: run.status, resultUrl: run.resultUrl });
   }
-  return Response.json({ ok: true, ran: results.length, results });
+  return Response.json({ ok: true, ran: results.length, results, purgedConversations: purged });
 }

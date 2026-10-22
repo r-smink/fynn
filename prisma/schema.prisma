@@ -78,11 +78,13 @@ model Conversation {
   model     String    @default("")
   title     String    @default("Nieuw gesprek")
   pinned    Boolean   @default(false)
+  archived  Boolean   @default(false) // gearchiveerd = blijft altijd bewaard (zie lib/retention.ts)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   messages  Message[]
 
   @@index([userId, pinned, updatedAt])
+  @@index([archived, pinned, updatedAt])
 }
 
 model Message {

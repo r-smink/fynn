@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { purgeExpiredConversations, RETENTION_DAYS } from "@/lib/retention";
 
 export async function GET() {
   const user = await requireUser();
@@ -13,7 +14,7 @@ export async function GET() {
       _count: { select: { messages: true } },
     },
   });
-  return Response.json({ conversations });
+  return Response.json({ conversations, retentionDays: RETENTION_DAYS });
 }
 
 export async function POST(req: Request) {
@@ -25,6 +26,9 @@ export async function POST(req: Request) {
     model?: string;
     brandId?: string;
   };
+
+  // Vangnet naast de cron: ruim bij een nieuw gesprek de verlopen gesprekken van deze gebruiker op.
+  await purgeExpiredConversations(user.id).catch(() => {});
 
   const agent = agentId
     ? await db.agent.findUnique({ where: { id: agentId } })

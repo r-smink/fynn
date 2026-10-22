@@ -43,6 +43,8 @@ Whitelabel ChatGPT/Claude-style chatplatform voor het Fyndable-team (zie README.
 - `lib/rag/` — chunk, embed (OpenRouter `EMBEDDING_MODEL`), cosine-search, ingest (file/url/sitemap/git/folder)
 - `lib/tools/` — platform (Fyndable admin-API), web (`:online` + fetch), image (`IMAGE_MODEL`), repo
 - `lib/export.ts` — markdown → on-brand HTML
+- `lib/retention.ts` — chats verlopen na `RETENTION_DAYS` (30) zonder activiteit, behalve `pinned`/`archived`;
+  opgeruimd door `/api/cron/run-due` + als vangnet bij het aanmaken van een nieuw gesprek
 - `data/` (gitignored) — lokale uploads + gegenereerde images (zonder Blob-token)
 - Git-bronnen: tijdelijke clone in `$TMPDIR/fynn-repos` → tekstbestanden naar `RepoFile`
   (repo-tools lezen uit de db)
