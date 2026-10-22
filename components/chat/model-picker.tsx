@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 type Model = {
   id: string;
@@ -28,12 +29,13 @@ type Fusion = {
 };
 
 export function ModelPicker({
-  value, onChange, isAdmin, includeFusions = true,
+  value, onChange, isAdmin, includeFusions = true, triggerClassName,
 }: {
   value: string;
   onChange: (id: string) => void;
   isAdmin?: boolean;
   includeFusions?: boolean;
+  triggerClassName?: string;
 }) {
   const [models, setModels] = useState<Model[]>([]);
   const [fusions, setFusions] = useState<Fusion[]>([]);
@@ -93,7 +95,7 @@ export function ModelPicker({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size="sm" className="max-w-[280px] gap-1">
+          <Button variant="outline" size="sm" className={cn("max-w-[280px] gap-1", triggerClassName)}>
             <span className="truncate">
               {currentFusion ? `⚡ ${currentFusion.name}` : current?.name || value || "Kies model"}
             </span>
@@ -101,7 +103,7 @@ export function ModelPicker({
           </Button>
         }
       />
-      <DropdownMenuContent align="start" className="w-[380px] p-0">
+      <DropdownMenuContent align="start" className="w-[380px] max-w-[calc(100vw-1rem)] p-0">
         <div className="flex items-center gap-1 border-b p-2">
           <Input
             placeholder="Zoek model…"

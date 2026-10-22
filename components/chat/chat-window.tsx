@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { Bot, Copy, RefreshCw, Send, Settings2, Square, User, FileDown } from "lucide-react";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Bot, Copy, RefreshCw, Send, Square, User, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ModelPicker } from "@/components/chat/model-picker";
-import { AgentPicker } from "@/components/chat/agent-picker";
+import { AgentPicker, useAgents } from "@/components/chat/agent-picker";
+import { MobileChatControls } from "@/components/chat/mobile-chat-controls";
 import { TemplatePicker, type ChatTemplate } from "@/components/chat/template-picker";
 import { MessageParts } from "@/components/chat/message-part";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ export function ChatWindow({
   const [input, setInput] = useState("");
   const [model, setModel] = useState(initialModel);
   const [agentId, setAgentId] = useState<string | null>(initialAgentId);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const agents = useAgents();
   const bottomRef = useRef<HTMLDivElement>(null);
   const sentFirst = useRef(false);
 
@@ -123,39 +123,24 @@ export function ChatWindow({
 
   return (
     <div className="flex h-full flex-col">
-      {/* header — desktop: pickers inline; mobiel: één instellingen-knop zodat de chat hoog blijft */}
+      {/* header — desktop: pickers inline; mobiel: compacte knoppen met bottom-sheets zodat de chat breed blijft */}
       <div className="hidden flex-wrap items-center gap-2 border-b px-4 py-2 md:flex">
-        <AgentPicker value={agentId} onChange={changeAgent} />
+        <AgentPicker value={agentId} onChange={changeAgent} agents={agents} />
         <ModelPicker value={model} onChange={changeModel} isAdmin={isAdmin} />
       </div>
-      <div className="flex items-center border-b px-2 py-1 md:hidden">
-        <Sheet open={pickerOpen} onOpenChange={setPickerOpen}>
-          <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={() => setPickerOpen(true)}>
-            <Settings2 className="h-4 w-4" />
-            <span className="text-xs">Agent &amp; model</span>
-          </Button>
-          <SheetContent side="bottom" className="max-h-[70vh] gap-3">
-            <SheetTitle>Agent &amp; model</SheetTitle>
-            <div className="flex flex-col gap-3 pb-4">
-              <div>
-                <p className="mb-1 text-xs font-medium text-muted-foreground">Agent</p>
-                <AgentPicker value={agentId} onChange={(id) => { void changeAgent(id); setPickerOpen(false); }} />
-              </div>
-              <div>
-                <p className="mb-1 text-xs font-medium text-muted-foreground">Model</p>
-                <ModelPicker value={model} onChange={(id) => { void changeModel(id); }} isAdmin={isAdmin} />
-              </div>
-              <TemplatePicker
-                agentId={agentId}
-                onSelect={(template: ChatTemplate) => { setInput(template.prompt); setPickerOpen(false); }}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
+      <MobileChatControls
+        className="border-b px-2 py-1"
+        agents={agents}
+        agentId={agentId}
+        onAgentChange={(id) => void changeAgent(id)}
+        model={model}
+        onModelChange={(id) => void changeModel(id)}
+        onTemplate={(template: ChatTemplate) => setInput(template.prompt)}
+        isAdmin={isAdmin}
+      />
 
       {/* messages */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto max-w-3xl space-y-5 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6">
           {messages.map((m, idx) => (
             <div key={m.id} className={cn("flex gap-3", m.role === "user" && "justify-end")}>
@@ -232,7 +217,7 @@ export function ChatWindow({
       </ScrollArea>
 
       {/* composer */}
-      <div className="border-t p-3 sm:p-4">
+      <div className="border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
         <div className="mx-auto flex max-w-3xl items-end gap-2">
           <Textarea
             value={input}
@@ -242,7 +227,9 @@ export function ChatWindow({
             className="min-h-[52px] flex-1 resize-none"
             rows={2}
           />
-          <TemplatePicker agentId={agentId} onSelect={(template: ChatTemplate) => setInput(template.prompt)} />
+          <div className="hidden md:block">
+            <TemplatePicker agentId={agentId} onSelect={(template: ChatTemplate) => setInput(template.prompt)} />
+          </div>
           {busy ? (
             <Button size="icon" variant="outline" onClick={() => stop()} title="Stop">
               <Square className="h-4 w-4" />
