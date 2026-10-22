@@ -17,9 +17,12 @@ export type ChatTemplate = {
 export function TemplatePicker({
   agentId,
   onSelect,
+  inline,
 }: {
   agentId: string | null;
   onSelect: (template: ChatTemplate) => void;
+  /** Toon de lijst direct (bijv. in een mobiele sheet) i.p.v. als dropdown. */
+  inline?: boolean;
 }) {
   const [templates, setTemplates] = useState<ChatTemplate[]>([]);
 
@@ -30,6 +33,34 @@ export function TemplatePicker({
       .then((data) => setTemplates(data.templates ?? []))
       .catch(() => setTemplates([]));
   }, [agentId]);
+
+  const empty = (
+    <div className="px-2 py-3 text-xs text-muted-foreground">
+      Geen templates aan deze agent gekoppeld.
+    </div>
+  );
+
+  if (inline) {
+    return (
+      <div className="flex flex-col gap-1">
+        {templates.map((template) => (
+          <button
+            key={template.id}
+            onClick={() => onSelect(template)}
+            className="flex items-start gap-2 rounded-lg border p-3 text-left hover:bg-accent/50"
+          >
+            <FileText className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">{template.title}</div>
+              <div className="text-xs text-muted-foreground">{template.category}</div>
+              <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{template.prompt}</div>
+            </div>
+          </button>
+        ))}
+        {!templates.length && empty}
+      </div>
+    );
+  }
 
   return (
     <DropdownMenu>
@@ -42,7 +73,7 @@ export function TemplatePicker({
           </Button>
         }
       />
-      <DropdownMenuContent align="end" className="w-80">
+      <DropdownMenuContent align="end" className="w-80 max-w-[calc(100vw-1rem)]">
         {templates.map((template) => (
           <DropdownMenuItem
             key={template.id}
@@ -60,11 +91,7 @@ export function TemplatePicker({
             </div>
           </DropdownMenuItem>
         ))}
-        {!templates.length && (
-          <div className="px-2 py-3 text-xs text-muted-foreground">
-            Geen templates aan deze agent gekoppeld.
-          </div>
-        )}
+        {!templates.length && empty}
       </DropdownMenuContent>
     </DropdownMenu>
   );

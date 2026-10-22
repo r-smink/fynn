@@ -130,7 +130,7 @@ export function AppSidebar(props: {
   logoDark: string;
 }) {
   return (
-    <aside className="hidden h-screen w-64 shrink-0 flex-col border-r bg-sidebar md:flex">
+    <aside className="hidden h-dvh w-64 shrink-0 flex-col border-r bg-sidebar md:flex">
       <SidebarContent {...props} />
     </aside>
   );
