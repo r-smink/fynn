@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { TemplatePicker, type ChatTemplate } from "@/components/chat/template-picker";
+import { MobileChatControls } from "@/components/chat/mobile-chat-controls";
 
 type Agent = {
   id: string;
@@ -51,12 +52,14 @@ export function NewChat({ agents, isAdmin }: { agents: Agent[]; isAdmin: boolean
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col justify-center px-4">
-      <h1 className="mb-2 text-3xl font-bold">Waarmee kan ik helpen?</h1>
-      <p className="mb-8 text-muted-foreground">Kies een agent en start een gesprek.</p>
+    <div className="h-full overflow-y-auto">
+    <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-center px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <h1 className="mb-2 text-2xl font-bold md:text-3xl">Waarmee kan ik helpen?</h1>
+      <p className="mb-6 text-muted-foreground md:mb-8">Kies een agent en start een gesprek.</p>
 
+      {/* desktop: agent-kaarten; mobiel: agentkeuze zit achter de knop in MobileChatControls */}
       {agents.length > 0 && (
-        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="mb-6 hidden grid-cols-2 gap-3 md:grid">
           {agents.map((a) => (
             <button
               key={a.id}
@@ -85,6 +88,17 @@ export function NewChat({ agents, isAdmin }: { agents: Agent[]; isAdmin: boolean
         </div>
       )}
 
+      <MobileChatControls
+        className="mb-2"
+        agents={agents}
+        agentId={agentId}
+        onAgentChange={setAgentId}
+        model={effectiveModel}
+        onModelChange={setModel}
+        onTemplate={(template: ChatTemplate) => setInput(template.prompt)}
+        isAdmin={isAdmin}
+      />
+
       <div className="flex items-end gap-2 rounded-xl border p-3 shadow-sm">
         <Textarea
           value={input}
@@ -95,12 +109,15 @@ export function NewChat({ agents, isAdmin }: { agents: Agent[]; isAdmin: boolean
           rows={2}
           autoFocus
         />
-        <ModelPicker value={effectiveModel} onChange={setModel} isAdmin={isAdmin} />
-        <TemplatePicker agentId={agentId} onSelect={(template: ChatTemplate) => setInput(template.prompt)} />
+        <div className="hidden items-end gap-2 md:flex">
+          <ModelPicker value={effectiveModel} onChange={setModel} isAdmin={isAdmin} />
+          <TemplatePicker agentId={agentId} onSelect={(template: ChatTemplate) => setInput(template.prompt)} />
+        </div>
         <Button size="icon" onClick={start} disabled={!input.trim() || busy} title="Start gesprek">
           <Send className="h-4 w-4" />
         </Button>
       </div>
+    </div>
     </div>
   );
 }
