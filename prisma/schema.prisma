@@ -41,6 +41,8 @@ model Brand {
   conversations Conversation[]
   templates     PromptTemplate[]
   users         User[]
+  fusions       FusionTemplate[]
+  tasks         Task[]
 }
 
 model Agent {
@@ -178,6 +180,8 @@ model FusionTemplate {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandId     String?
+  brand       Brand?   @relation(fields: [brandId], references: [id], onDelete: SetNull)
   name        String
   description String   @default("")
   leadModel   String
@@ -187,12 +191,15 @@ model FusionTemplate {
   createdAt   DateTime @default(now())
 
   @@index([userId])
+  @@index([brandId])
 }
 
 model Task {
   id           String    @id @default(cuid())
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandId      String?
+  brand        Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
   name         String
   agentId      String?
   agent        Agent?    @relation(fields: [agentId], references: [id])
@@ -207,6 +214,7 @@ model Task {
   runs         TaskRun[]
 
   @@index([userId])
+  @@index([brandId])
   @@index([enabled, lastRunAt])
 }
 

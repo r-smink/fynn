@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { wpConfigured, wpPublishPost } from "@/lib/wordpress";
+import { ownsOrShares } from "@/lib/scope";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -9,8 +10,10 @@ export async function POST(_req: Request, ctx: Ctx) {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await ctx.params;
-  const task = await db.task.findFirst({ where: { id, userId: user.id } });
-  if (!task) return Response.json({ error: "Niet gevonden" }, { status: 404 });
+  const task = await db.task.findFirst({ where: { id } });
+  if (!task || !(await ownsOrShares(task, user))) {
+    return Response.json({ error: "Niet gevonden" }, { status: 404 });
+  }
 
   if (!wpConfigured()) {
     return Response.json({ error: "WordPress niet geconfigureerd" }, { status: 503 });

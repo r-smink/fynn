@@ -19,6 +19,8 @@ type Fusion = {
   leadEffort: string;
   sidekick1: string;
   sidekick2: string;
+  brandId?: string | null;
+  brand?: { id: string; name: string } | null;
 };
 
 const EFFORTS = [
@@ -30,7 +32,10 @@ const EFFORTS = [
   { value: "xhigh", label: "Extra high" },
 ];
 
-const empty = { name: "", description: "", leadModel: "", leadEffort: "", sidekick1: "", sidekick2: "" };
+const empty = {
+  name: "", description: "", leadModel: "", leadEffort: "",
+  sidekick1: "", sidekick2: "", brandId: "",
+};
 
 function ModelField({
   label, value, onChange, optional,
@@ -55,7 +60,9 @@ function ModelField({
   );
 }
 
-export function FusionsAdmin({ fusions }: { fusions: Fusion[] }) {
+export function FusionsAdmin({
+  fusions, brands, isAdmin,
+}: { fusions: Fusion[]; brands: { id: string; name: string }[]; isAdmin: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -67,6 +74,7 @@ export function FusionsAdmin({ fusions }: { fusions: Fusion[] }) {
     setF({
       name: t.name, description: t.description, leadModel: t.leadModel,
       leadEffort: t.leadEffort, sidekick1: t.sidekick1, sidekick2: t.sidekick2,
+      brandId: t.brandId ?? "",
     });
     setOpen(true);
   }
@@ -104,6 +112,7 @@ export function FusionsAdmin({ fusions }: { fusions: Fusion[] }) {
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               <Badge variant="secondary">Lead: {t.leadModel}</Badge>
+              {t.brand && <Badge variant="outline">{t.brand.name}</Badge>}
               {t.leadEffort && <Badge variant="outline">effort: {t.leadEffort}</Badge>}
               {t.sidekick1 && <Badge variant="outline">+ {t.sidekick1}</Badge>}
               {t.sidekick2 && <Badge variant="outline">+ {t.sidekick2}</Badge>}
@@ -167,6 +176,17 @@ export function FusionsAdmin({ fusions }: { fusions: Fusion[] }) {
               Sidekicks analyseren je vraag en leveren input aan het lead-model; het lead-model schrijft
               één coherent antwoord. Kies goedkope sidekicks voor kostenefficiënte uitvoering.
             </p>
+            {isAdmin && (
+              <div className="space-y-1">
+                <Label>Brand (gedeeld binnen deze company)</Label>
+                <Select value={f.brandId} onValueChange={(v) => setF({ ...f, brandId: v ?? "" })}>
+                  <SelectTrigger><SelectValue placeholder="Alleen voor mij" /></SelectTrigger>
+                  <SelectContent>
+                    {brands.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setOpen(false)}>Annuleren</Button>
               <Button onClick={save} disabled={!f.name.trim() || !f.leadModel}>Opslaan</Button>
