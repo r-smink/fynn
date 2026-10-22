@@ -39,14 +39,15 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const convo = await db.conversation.findFirst({ where: { id, userId: user.id } });
   if (!convo) return Response.json({ error: "Niet gevonden" }, { status: 404 });
 
-  const { title, pinned, model, agentId } = (await req.json()) as {
-    title?: string; pinned?: boolean; model?: string; agentId?: string;
+  const { title, pinned, archived, model, agentId } = (await req.json()) as {
+    title?: string; pinned?: boolean; archived?: boolean; model?: string; agentId?: string;
   };
   const updated = await db.conversation.update({
     where: { id },
     data: {
       ...(title !== undefined && { title }),
       ...(pinned !== undefined && { pinned }),
+      ...(archived !== undefined && { archived }),
       ...(model !== undefined && { model }),
       ...(agentId !== undefined && { agentId }),
     },
