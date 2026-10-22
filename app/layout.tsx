@@ -9,19 +9,22 @@ import "./globals.css";
 
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-sans" });
 
-export const metadata: Metadata = {
-  title: "FYNN",
-  description: "FYNN — whitelabel AI chatplatform",
-  appleWebApp: {
-    capable: true,
-    title: "FYNN",
-    statusBarStyle: "black-translucent",
-  },
-  icons: {
-    icon: "/api/branding/favicon",
-    apple: "/api/branding/app-icon",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await getBranding();
+  return {
+    title: branding.siteTitle,
+    description: `${branding.siteTitle} — whitelabel AI chatplatform`,
+    appleWebApp: {
+      capable: true,
+      title: branding.appName,
+      statusBarStyle: "black-translucent",
+    },
+    icons: {
+      icon: [{ url: branding.favicon }],
+      apple: [{ url: branding.appIcon }],
+    },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",

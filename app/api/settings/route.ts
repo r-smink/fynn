@@ -30,5 +30,15 @@ export async function PATCH(request: Request) {
     });
   }
 
+  if (body?.siteTitle !== undefined) {
+    const siteTitle = String(body.siteTitle).trim().slice(0, 80);
+    if (!siteTitle) return NextResponse.json({ error: "Sitetitel mag niet leeg zijn" }, { status: 400 });
+    await db.setting.upsert({
+      where: { key: "site.title" },
+      create: { key: "site.title", value: siteTitle },
+      update: { value: siteTitle },
+    });
+  }
+
   return NextResponse.json({ success: true });
 }
