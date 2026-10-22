@@ -2,12 +2,16 @@ import { db } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { userBrandScope } from "@/lib/scope";
 
-export async function GET() {
+export async function GET(req: Request) {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const scope = await userBrandScope(user);
+  const agentId = new URL(req.url).searchParams.get("agentId");
   const templates = await db.promptTemplate.findMany({
-    where: scope ? { brandId: scope } : {},
+    where: {
+      ...(scope ? { brandId: scope } : {}),
+      ...(agentId ? { agents: { some: { id: agentId } } } : {}),
+    },
     orderBy: [{ category: "asc" }, { title: "asc" }],
     include: { brand: { select: { id: true, name: true } } },
   });

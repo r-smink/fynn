@@ -6,6 +6,7 @@ import { Bot, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ModelPicker } from "@/components/chat/model-picker";
+import { TemplatePicker, type ChatTemplate } from "@/components/chat/template-picker";
 
 type Agent = {
   id: string;
@@ -95,6 +96,7 @@ export function NewChat({ agents, isAdmin }: { agents: Agent[]; isAdmin: boolean
           autoFocus
         />
         <ModelPicker value={effectiveModel} onChange={setModel} isAdmin={isAdmin} />
+        <TemplatePicker agentId={agentId} onSelect={(template: ChatTemplate) => setInput(template.prompt)} />
         <Button size="icon" onClick={start} disabled={!input.trim() || busy} title="Start gesprek">
           <Send className="h-4 w-4" />
         </Button>

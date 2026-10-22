@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { AgentPicker } from "@/components/chat/agent-picker";
+import { TemplatePicker, type ChatTemplate } from "@/components/chat/template-picker";
 import { MessageParts } from "@/components/chat/message-part";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +41,7 @@ export function ChatWindow({
 
   const busy = status === "submitted" || status === "streaming";
 
-  // auto-send a queued first message (set by the new-chat screen)
+  // Startschermberichten worden automatisch verstuurd; templates blijven eerst bewerkbaar.
   useEffect(() => {
     if (sentFirst.current) return;
     const first = sessionStorage.getItem(`fynn:first:${conversationId}`);
@@ -50,6 +51,15 @@ export function ChatWindow({
       sendMessage({ text: first }, { body: { conversationId, model, agentId } });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
+  useEffect(() => {
+    const draftKey = `fynn:draft:${conversationId}`;
+    const draft = sessionStorage.getItem(draftKey);
+    if (!draft) return;
+    const timer = window.setTimeout(() => setInput(draft), 0);
+    sessionStorage.removeItem(draftKey);
+    return () => window.clearTimeout(timer);
   }, [conversationId]);
 
   useEffect(() => {
@@ -135,6 +145,10 @@ export function ChatWindow({
                 <p className="mb-1 text-xs font-medium text-muted-foreground">Model</p>
                 <ModelPicker value={model} onChange={(id) => { void changeModel(id); }} isAdmin={isAdmin} />
               </div>
+              <TemplatePicker
+                agentId={agentId}
+                onSelect={(template: ChatTemplate) => { setInput(template.prompt); setPickerOpen(false); }}
+              />
             </div>
           </SheetContent>
         </Sheet>
@@ -228,6 +242,7 @@ export function ChatWindow({
             className="min-h-[52px] flex-1 resize-none"
             rows={2}
           />
+          <TemplatePicker agentId={agentId} onSelect={(template: ChatTemplate) => setInput(template.prompt)} />
           {busy ? (
             <Button size="icon" variant="outline" onClick={() => stop()} title="Stop">
               <Square className="h-4 w-4" />

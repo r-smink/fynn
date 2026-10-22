@@ -10,7 +10,11 @@ export async function GET() {
   const agents = await db.agent.findMany({
     where: scope ? { brandId: scope } : {},
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    include: { brand: true, sources: { select: { id: true, name: true } } },
+    include: {
+      brand: true,
+      sources: { select: { id: true, name: true } },
+      templates: { select: { id: true, title: true, category: true } },
+    },
   });
   return Response.json({ agents, toolGroups: TOOL_GROUPS });
 }
@@ -36,6 +40,9 @@ export async function POST(req: Request) {
       sortOrder: data.sortOrder ?? 0,
       ...(data.sourceIds?.length
         ? { sources: { connect: data.sourceIds.map((id: string) => ({ id })) } }
+        : {}),
+      ...(data.templateIds?.length
+        ? { templates: { connect: data.templateIds.map((id: string) => ({ id })) } }
         : {}),
     },
   });
