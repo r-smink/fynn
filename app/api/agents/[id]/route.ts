@@ -27,6 +27,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
       ...(data.sourceIds !== undefined && {
         sources: { set: data.sourceIds.map((sid: string) => ({ id: sid })) },
       }),
+      ...(data.templateIds !== undefined && {
+        templates: { set: data.templateIds.map((tid: string) => ({ id: tid })) },
+      }),
     },
     include: { brand: true },
   });

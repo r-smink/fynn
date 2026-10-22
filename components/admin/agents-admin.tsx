@@ -23,12 +23,14 @@ type AgentRow = {
   temperature: number; enabledTools: string; isDefault: boolean; sortOrder: number;
   brand?: { name: string } | null;
   sources: { id: string }[];
+  templates: { id: string; title: string; category: string }[];
 };
 
 type Props = {
   agents: AgentRow[];
   brands: { id: string; name: string }[];
   sources: { id: string; name: string }[];
+  templates: { id: string; title: string; category: string; brandId: string | null }[];
   toolGroups: { id: string; label: string }[];
   canEdit: boolean;
 };
@@ -36,10 +38,11 @@ type Props = {
 const EMPTY = {
   name: "", description: "", icon: "Bot", color: "", brandId: "",
   defaultModel: "", temperature: 0.7, systemPrompt: "",
-  enabledTools: [] as string[], sourceIds: [] as string[], isDefault: false, sortOrder: 0,
+  enabledTools: [] as string[], sourceIds: [] as string[], templateIds: [] as string[],
+  isDefault: false, sortOrder: 0,
 };
 
-export function AgentsAdmin({ agents, brands, sources, toolGroups, canEdit }: Props) {
+export function AgentsAdmin({ agents, brands, sources, templates, toolGroups, canEdit }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -59,6 +62,7 @@ export function AgentsAdmin({ agents, brands, sources, toolGroups, canEdit }: Pr
       systemPrompt: a.systemPrompt,
       enabledTools: JSON.parse(a.enabledTools || "[]"),
       sourceIds: a.sources.map((s) => s.id),
+      templateIds: a.templates.map((t) => t.id),
       isDefault: a.isDefault, sortOrder: a.sortOrder,
     });
     setOpen(true);
@@ -123,6 +127,11 @@ export function AgentsAdmin({ agents, brands, sources, toolGroups, canEdit }: Pr
                 <Badge key={t} variant="outline" className="text-xs">{t}</Badge>
               ))}
             </div>
+            {a.templates.length > 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Templates: {a.templates.map((t) => t.title).join(", ")}
+              </p>
+            )}
           </div>
         ))}
         {!agents.length && <p className="text-sm text-muted-foreground">Nog geen agents.</p>}
@@ -201,6 +210,23 @@ export function AgentsAdmin({ agents, brands, sources, toolGroups, canEdit }: Pr
                   </label>
                 ))}
                 {!sources.length && <p className="text-xs text-muted-foreground">Nog geen bronnen — voeg toe via Kennisbank.</p>}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Templates voor deze agent</Label>
+              <div className="max-h-40 space-y-1 overflow-auto rounded border p-2">
+                {templates.map((t) => (
+                  <label key={t.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={f.templateIds.includes(t.id)}
+                      onChange={() => setF({ ...f, templateIds: toggle(f.templateIds, t.id) })}
+                    />
+                    <span>{t.title}</span>
+                    <span className="text-xs text-muted-foreground">{t.category}</span>
+                  </label>
+                ))}
+                {!templates.length && <p className="text-xs text-muted-foreground">Nog geen templates.</p>}
               </div>
             </div>
             <div className="flex items-center gap-2">

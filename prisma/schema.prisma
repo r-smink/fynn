@@ -38,8 +38,8 @@ model Brand {
   createdAt     DateTime          @default(now())
   agents        Agent[]
   sources       KnowledgeSource[]
-  conversations Conversation[]
   templates     PromptTemplate[]
+  conversations Conversation[]
   users         User[]
   fusions       FusionTemplate[]
   tasks         Task[]
@@ -62,6 +62,7 @@ model Agent {
   sortOrder     Int            @default(0)
   createdAt     DateTime       @default(now())
   sources       KnowledgeSource[]
+  templates     PromptTemplate[]
   conversations Conversation[]
   tasks         Task[]
 }
@@ -173,6 +174,7 @@ model PromptTemplate {
   prompt    String
   brandId   String?
   brand     Brand?   @relation(fields: [brandId], references: [id])
+  agents    Agent[]
   createdAt DateTime @default(now())
 }
 

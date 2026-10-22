@@ -5,13 +5,21 @@ import { TOOL_GROUPS, TOOL_GROUP_LABELS } from "@/lib/agents";
 
 export default async function AgentsPage() {
   const admin = await requireAdmin();
-  const [agents, brands, sources] = await Promise.all([
+  const [agents, brands, sources, templates] = await Promise.all([
     db.agent.findMany({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      include: { brand: true, sources: { select: { id: true } } },
+      include: {
+        brand: true,
+        sources: { select: { id: true } },
+        templates: { select: { id: true, title: true, category: true } },
+      },
     }),
     db.brand.findMany({ orderBy: { name: "asc" } }),
     db.knowledgeSource.findMany({ orderBy: { name: "asc" } }),
+    db.promptTemplate.findMany({
+      orderBy: [{ category: "asc" }, { title: "asc" }],
+      select: { id: true, title: true, category: true, brandId: true },
+    }),
   ]);
   return (
     <div className="h-full overflow-auto p-6">
@@ -24,6 +32,7 @@ export default async function AgentsPage() {
         agents={agents}
         brands={brands}
         sources={sources}
+        templates={templates}
         toolGroups={TOOL_GROUPS.map((g) => ({ id: g, label: TOOL_GROUP_LABELS[g] }))}
         canEdit={!!admin}
       />

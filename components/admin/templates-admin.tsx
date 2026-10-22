@@ -56,7 +56,7 @@ export function TemplatesAdmin({
       body: JSON.stringify({}),
     });
     const { conversation } = await res.json();
-    sessionStorage.setItem(`fynn:first:${conversation.id}`, t.prompt);
+    sessionStorage.setItem(`fynn:draft:${conversation.id}`, t.prompt);
     router.push(`/chat/${conversation.id}`);
   }
 
