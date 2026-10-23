@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { EDIT_POLICIES, type EditPolicy } from "@/lib/image-styles";
 
 type Source = {
   id: string; name: string; type: string; config: string; status: string;
@@ -26,6 +27,7 @@ type Asset = {
   contentType: string;
   size: number;
   caption: string;
+  editPolicy: EditPolicy;
   createdAt: string | Date;
 };
 
@@ -232,6 +234,21 @@ export function KnowledgeAdmin({
     else toast.success(`${result.uploaded} bestanden toegevoegd en gesynchroniseerd`);
     await loadAssets(source.id);
     router.refresh();
+  }
+
+  async function changeEditPolicy(asset: Asset, editPolicy: EditPolicy) {
+    if (!filesSource) return;
+    const previous = asset.editPolicy;
+    setAssets((list) => list.map((a) => (a.id === asset.id ? { ...a, editPolicy } : a)));
+    const res = await fetch(`/api/knowledge/${filesSource.id}/assets/${asset.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ editPolicy }),
+    });
+    if (!res.ok) {
+      setAssets((list) => list.map((a) => (a.id === asset.id ? { ...a, editPolicy: previous } : a)));
+      toast.error("Bewerkingsniveau opslaan mislukt");
+    }
   }
 
   async function deleteAsset(asset: Asset) {
@@ -475,6 +492,26 @@ export function KnowledgeAdmin({
                         {asset.caption || asset.filename}
                       </p>
                     </a>
+                    <Select
+                      value={asset.editPolicy ?? "free"}
+                      onValueChange={(v) => v && changeEditPolicy(asset, v as EditPolicy)}
+                    >
+                      <SelectTrigger className="mt-2 h-8 w-full text-xs" title="Hoeveel mag de AI dit beeld aanpassen?">
+                        <SelectValue>
+                          {(v: string) => `AI-aanpassing: ${EDIT_POLICIES[(v as EditPolicy) ?? "free"]?.label ?? v}`}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(EDIT_POLICIES) as EditPolicy[]).map((key) => (
+                          <SelectItem key={key} value={key}>
+                            <span className="flex flex-col">
+                              <span>{EDIT_POLICIES[key].label}</span>
+                              <span className="text-xs text-muted-foreground">{EDIT_POLICIES[key].hint}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <span className="truncate text-xs" title={asset.filename}>{asset.filename}</span>
                       <Button

@@ -14,7 +14,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       brand: true,
       chunks: { take: 10, select: { id: true, path: true, text: true } },
       assets: {
-        select: { id: true, filename: true, contentType: true, size: true, caption: true, createdAt: true },
+        select: { id: true, filename: true, contentType: true, size: true, caption: true, editPolicy: true, createdAt: true },
         orderBy: { createdAt: "asc" },
       },
     },

@@ -23,6 +23,8 @@ model User {
   usage         UsageEvent[]
   fusions       FusionTemplate[]
   tasks         Task[]
+  imageStyles   ImageStyle[]
+  images        ImageGeneration[]
 }
 
 model Brand {
@@ -43,6 +45,7 @@ model Brand {
   users         User[]
   fusions       FusionTemplate[]
   tasks         Task[]
+  imageStyles   ImageStyle[]
 }
 
 model Agent {
@@ -129,6 +132,7 @@ model KnowledgeAsset {
   contentType String
   size        Int
   caption     String          @default("")
+  editPolicy  String          @default("free") // locked | minimal | free — hoeveel de AI dit beeld mag aanpassen
   createdAt   DateTime        @default(now())
 
   @@index([sourceId])
@@ -252,4 +256,34 @@ model UsageEvent {
 model Setting {
   key   String @id
   value String
+}
+
+/** Stijl-preset voor de beeldstudio (naast de ingebouwde presets uit lib/image-styles.ts). */
+model ImageStyle {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandId     String?
+  brand       Brand?   @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  name        String
+  emoji       String   @default("🎨")
+  prompt      String // stijlinstructie die aan de prompt wordt toegevoegd
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([brandId])
+}
+
+model ImageGeneration {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt      String
+  style       String   @default("") // naam van de gebruikte preset
+  model       String
+  aspectRatio String   @default("")
+  url         String
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
