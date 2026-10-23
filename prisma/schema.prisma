@@ -25,6 +25,7 @@ model User {
   tasks         Task[]
   imageStyles   ImageStyle[]
   images        ImageGeneration[]
+  imageFolders  ImageFolder[]
 }
 
 model Brand {
@@ -46,6 +47,8 @@ model Brand {
   fusions       FusionTemplate[]
   tasks         Task[]
   imageStyles   ImageStyle[]
+  imageFolders  ImageFolder[]
+  images        ImageGeneration[]
 }
 
 model Agent {
@@ -275,9 +278,13 @@ model ImageStyle {
 }
 
 model ImageGeneration {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandId     String?
+  brand       Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  folderId    String?
+  folder      ImageFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   prompt      String
   style       String   @default("") // naam van de gebruikte preset
   model       String
@@ -286,4 +293,24 @@ model ImageGeneration {
   createdAt   DateTime @default(now())
 
   @@index([userId, createdAt])
+  @@index([folderId, createdAt])
+}
+
+/** Map in de beeldbank; genest via parentId, gedeeld binnen een brand. */
+model ImageFolder {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandId   String?
+  brand     Brand?            @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  parentId  String?
+  parent    ImageFolder?      @relation("ImageFolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  ImageFolder[]     @relation("ImageFolderTree")
+  name      String
+  createdAt DateTime          @default(now())
+  images    ImageGeneration[]
+
+  @@index([userId])
+  @@index([brandId])
+  @@index([parentId])
 }
