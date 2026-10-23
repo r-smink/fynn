@@ -20,6 +20,7 @@ export async function createImage(opts: {
   referenceAssetIds?: string[];
   /** Beperk referenties tot deze kennisbronnen (agent-scope). */
   sourceIds?: string[];
+  abortSignal?: AbortSignal;
 }) {
   const references = opts.referenceAssetIds?.length
     ? await db.knowledgeAsset.findMany({
@@ -47,6 +48,7 @@ export async function createImage(opts: {
   const { image, usage } = await generateImage({
     model: openrouter().imageModel(model),
     prompt: images.length ? { text, images } : text,
+    abortSignal: opts.abortSignal,
     ...(opts.aspectRatio ? { aspectRatio: opts.aspectRatio as `${number}:${number}` } : {}),
   });
   const name = `${(opts.filename || "img").replace(/[^a-z0-9-_]/gi, "-").toLowerCase()}-${crypto.randomBytes(4).toString("hex")}.png`;

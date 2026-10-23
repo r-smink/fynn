@@ -12,6 +12,7 @@ import { AgentPicker, useAgents } from "@/components/chat/agent-picker";
 import { MobileChatControls } from "@/components/chat/mobile-chat-controls";
 import { TemplatePicker, type ChatTemplate } from "@/components/chat/template-picker";
 import { MessageParts } from "@/components/chat/message-part";
+import { ThinkingIndicator, currentActivity } from "@/components/chat/thinking-indicator";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -40,6 +41,12 @@ export function ChatWindow({
   });
 
   const busy = status === "submitted" || status === "streaming";
+  const lastMessage = messages[messages.length - 1];
+  const activity = busy ? currentActivity(lastMessage, status === "submitted") : null;
+  // Lege assistent-bubbel tijdens het opstarten verbergen; de indicator toont dan de status
+  const emptyPending = busy && lastMessage?.role === "assistant" && lastMessage.parts.every((p) => p.type === "step-start")
+    ? lastMessage
+    : undefined;
 
   // Startschermberichten worden automatisch verstuurd; templates blijven eerst bewerkbaar.
   useEffect(() => {
@@ -126,7 +133,6 @@ export function ChatWindow({
       {/* header — desktop: pickers inline; mobiel: compacte knoppen met bottom-sheets zodat de chat breed blijft */}
       <div className="hidden flex-wrap items-center gap-2 border-b px-4 py-2 md:flex">
         <AgentPicker value={agentId} onChange={changeAgent} agents={agents} />
-        <ModelPicker value={model} onChange={changeModel} isAdmin={isAdmin} />
       </div>
       <MobileChatControls
         className="border-b px-2 py-1"
@@ -142,7 +148,7 @@ export function ChatWindow({
       {/* messages */}
       <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto max-w-3xl space-y-5 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6">
-          {messages.map((m, idx) => (
+          {messages.filter((m) => m !== emptyPending).map((m, idx) => (
             <div key={m.id} className={cn("flex gap-3", m.role === "user" && "justify-end")}>
               {m.role !== "user" && (
                 <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -197,16 +203,7 @@ export function ChatWindow({
               )}
             </div>
           ))}
-          {status === "submitted" && (
-            <div className="flex gap-3">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Bot className="h-4 w-4" />
-              </div>
-              <div className="rounded-2xl bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-                Aan het denken…
-              </div>
-            </div>
-          )}
+          {activity && <ThinkingIndicator activity={activity} fusion={model.startsWith("fusion:")} />}
           {error && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
               {error.message || "Er ging iets mis"}
@@ -218,6 +215,18 @@ export function ChatWindow({
 
       {/* composer */}
       <div className="border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
+        {/* model-keuze bij het invoerveld: altijd in zicht, ook midden in een gesprek */}
+        <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2">
+          <ModelPicker
+            value={model}
+            onChange={changeModel}
+            isAdmin={isAdmin}
+            triggerClassName="h-7 max-w-[240px] text-xs"
+          />
+          {messages.length > 0 && !busy && (
+            <span className="hidden text-xs text-muted-foreground sm:inline">Wissel gerust van model, ook midden in een gesprek</span>
+          )}
+        </div>
         <div className="mx-auto flex max-w-3xl items-end gap-2">
           <Textarea
             value={input}

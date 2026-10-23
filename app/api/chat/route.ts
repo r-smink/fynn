@@ -41,6 +41,28 @@ async function improveTitle(conversationId: string, firstUserText: string) {
   } catch { /* behoud de fallback-titel */ }
 }
 
+/**
+ * Antwoorden van een ánder model bevatten provider-specifieke redeneringsdata (signatures,
+ * reasoning_details) die een nieuw model kan weigeren. Bij wisselen van model halen we die
+ * eruit zodat het gesprek gewoon doorloopt; de tekst en tool-resultaten blijven staan.
+ */
+function forModel(messages: UIMessage[], model: string): UIMessage[] {
+  return messages.map((m) => {
+    if (m.role !== "assistant" || (m.metadata as { model?: string } | undefined)?.model === model) return m;
+    return {
+      ...m,
+      parts: m.parts
+        .filter((p) => p.type !== "reasoning")
+        .map((p) => {
+          const rest = { ...p } as Record<string, unknown>;
+          delete rest.providerMetadata;
+          delete rest.callProviderMetadata;
+          return rest as typeof p;
+        }),
+    };
+  });
+}
+
 export async function POST(req: Request) {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -146,7 +168,7 @@ export async function POST(req: Request) {
   const result = streamText({
     model: fusion ? fusionLeadModel(fusion) : chatModel(effectiveModel),
     system,
-    messages: await convertToModelMessages(uiMessages),
+    messages: await convertToModelMessages(forModel(uiMessages, displayModel)),
     tools,
     ...(Object.keys(tools).length ? { stopWhen: stepCountIs(8) } : {}),
     temperature: agent?.temperature ?? 0.7,
