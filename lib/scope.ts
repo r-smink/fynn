@@ -35,3 +35,9 @@ export async function ownsOrShares(
   const u = await db.user.findUnique({ where: { id: user.id }, select: { brandId: true } });
   return u?.brandId === rec.brandId;
 }
+
+/** Kennisbronnen waarvan een gebruiker afbeeldingen als referentie mag gebruiken. */
+export async function referenceSourceWhere(user: { id: string; role: string }) {
+  const scope = await userBrandScope(user);
+  return scope ? { OR: [{ brandId: scope }, { brandId: null }] } : {};
+}

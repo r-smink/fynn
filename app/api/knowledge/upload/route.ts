@@ -129,6 +129,7 @@ export async function POST(req: Request) {
         contentType: true,
         size: true,
         caption: true,
+        editPolicy: true,
         createdAt: true,
       },
     });

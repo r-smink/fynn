@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bot, Building2, CalendarClock, Database, FileText, BarChart3, Users, Waypoints,
+  Bot, Building2, CalendarClock, Image as ImageIcon, Database, FileText, BarChart3, Users, Waypoints,
   MessageSquarePlus, MessagesSquare, Settings, LogOut, Sun, Moon, Monitor,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
@@ -17,6 +17,7 @@ import { isAdminRole, isSuperadmin } from "@/lib/roles";
 import { Logo } from "@/components/logo";
 
 const NAV = [
+  { href: "/images", label: "Beeldstudio", icon: ImageIcon },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/brands", label: "Brands", icon: Building2 },
   { href: "/knowledge", label: "Kennisbank", icon: Database },

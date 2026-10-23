@@ -1,16 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, RefreshCw, Waypoints } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
-type Model = {
+export type Model = {
   id: string;
   name: string;
   provider: string;
@@ -29,17 +27,21 @@ type Fusion = {
 };
 
 export function ModelPicker({
-  value, onChange, isAdmin, includeFusions = true, triggerClassName,
+  value, onChange, isAdmin, includeFusions = true, triggerClassName, filter,
 }: {
   value: string;
   onChange: (id: string) => void;
   isAdmin?: boolean;
   includeFusions?: boolean;
   triggerClassName?: string;
+  /** Optionele voorselectie, bijv. alleen beeldmodellen. */
+  filter?: (m: Model) => boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const [models, setModels] = useState<Model[]>([]);
   const [fusions, setFusions] = useState<Fusion[]>([]);
   const [q, setQ] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const [syncing, setSyncing] = useState(false);
 
   async function load() {
@@ -64,11 +66,20 @@ export function ModelPicker({
   }
 
   const filtered = useMemo(() => {
-    const s = q.toLowerCase();
-    return models.filter((m) =>
-      !s || m.id.toLowerCase().includes(s) || m.name.toLowerCase().includes(s) || m.provider.includes(s)
-    );
-  }, [models, q]);
+    // Alle zoekwoorden moeten ergens in id/naam/provider voorkomen ("claude sonnet", "gpt 5")
+    const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+    return models.filter((m) => {
+      if (filter && !filter(m)) return false;
+      const hay = `${m.id} ${m.name} ${m.provider}`.toLowerCase();
+      return terms.every((t) => hay.includes(t));
+    });
+  }, [models, q, filter]);
+
+  function pick(id: string) {
+    onChange(id);
+    setOpen(false);
+    setQ("");
+  }
 
   const grouped = useMemo(() => {
     const g = new Map<string, Model[]>();
@@ -83,7 +94,7 @@ export function ModelPicker({
   const filteredFusions = useMemo(() => {
     if (!includeFusions) return [];
     const s = q.toLowerCase();
-    return fusions.filter((f) => !s || f.name.toLowerCase().includes(s));
+    return fusions.filter((f) => !s || f.name.toLowerCase().includes(s.trim()));
   }, [fusions, q, includeFusions]);
 
   const current = models.find((m) => m.id === value);
@@ -92,8 +103,8 @@ export function ModelPicker({
     : undefined;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
         render={
           <Button variant="outline" size="sm" className={cn("max-w-[280px] gap-1", triggerClassName)}>
             <span className="truncate">
@@ -103,9 +114,15 @@ export function ModelPicker({
           </Button>
         }
       />
-      <DropdownMenuContent align="start" className="w-[380px] max-w-[calc(100vw-1rem)] p-0">
+      <PopoverContent
+        align="start"
+        className="w-[380px] max-w-[calc(100vw-1rem)] p-0"
+        // Desktop: direct typen; touch: geen toetsenbord dat meteen de lijst afdekt
+        initialFocus={(openType) => (openType === "touch" ? true : searchRef.current)}
+      >
         <div className="flex items-center gap-1 border-b p-2">
           <Input
+            ref={searchRef}
             placeholder="Zoek model…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -126,7 +143,7 @@ export function ModelPicker({
               {filteredFusions.map((f) => (
                 <button
                   key={f.id}
-                  onClick={() => onChange(`fusion:${f.id}`)}
+                  onClick={() => pick(`fusion:${f.id}`)}
                   className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
                 >
                   <span className="flex items-center gap-2 truncate">
@@ -152,7 +169,7 @@ export function ModelPicker({
               {items.map((m) => (
                 <button
                   key={m.id}
-                  onClick={() => onChange(m.id)}
+                  onClick={() => pick(m.id)}
                   className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
                 >
                   <span className="flex items-center gap-2 truncate">
@@ -173,7 +190,7 @@ export function ModelPicker({
             </p>
           )}
         </ScrollArea>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   );
 }
