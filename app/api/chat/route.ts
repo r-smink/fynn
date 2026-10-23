@@ -1,5 +1,8 @@
+import { after } from "next/server";
 import {
+  consumeStream,
   convertToModelMessages,
+  generateId,
   generateText,
   stepCountIs,
   streamText,
@@ -164,20 +167,25 @@ export async function POST(req: Request) {
   });
 
   return result.toUIMessageStreamResponse({
+    // Zonder generateMessageId is het antwoord-id "" → elke insert na de eerste botst op de PK.
+    generateMessageId: generateId,
+    // Stream server-side afmaken (en opslaan), ook als de client wegnavigeert.
+    consumeSseStream: ({ stream }) => after(consumeStream({ stream })),
     messageMetadata: ({ part }) => {
       if (part.type === "finish") return { model: displayModel };
       return undefined;
     },
     onFinish: async ({ responseMessage }) => {
-      await db.message.create({
-        data: {
-          id: responseMessage.id,
-          conversationId,
-          role: "assistant",
-          parts: JSON.stringify(responseMessage.parts),
-          model: displayModel,
-          usage: JSON.stringify(responseMessage.metadata ?? {}),
-        },
+      const id = responseMessage.id || generateId();
+      const data = {
+        parts: JSON.stringify(responseMessage.parts),
+        model: displayModel,
+        usage: JSON.stringify(responseMessage.metadata ?? {}),
+      };
+      await db.message.upsert({
+        where: { id },
+        create: { id, conversationId, role: "assistant", ...data },
+        update: data,
       });
       await db.conversation.update({
         where: { id: conversationId },
