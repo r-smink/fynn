@@ -18,8 +18,9 @@ export default async function ImagesPage() {
     <div className="h-full overflow-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <h1 className="mb-1 text-2xl font-bold">Beeldstudio</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        Beschrijf je beeld, kies een stijl en gebruik eventueel afbeeldingen uit de kennisbank als referentie.
-        Orden je beelden in mappen; brand-mappen zijn gedeeld met de hele brand.
+        Beschrijf je beeld, kies een stijl en upload eventueel een eigen afbeelding of kies er een uit de kennisbank
+        om te bewerken of als referentie. Open een beeld om erop door te prompten. Orden je beelden in mappen;
+        brand-mappen zijn gedeeld met de hele brand.
       </p>
       <ImageStudio
         customStyles={styles.map(({ id, name, emoji, prompt }) => ({ id, name, emoji, prompt }))}

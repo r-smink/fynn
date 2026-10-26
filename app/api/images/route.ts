@@ -1,10 +1,13 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { createImage } from "@/lib/images";
-import { ASPECT_RATIOS, BUILTIN_IMAGE_STYLES } from "@/lib/image-styles";
+import {
+  ASPECT_RATIOS, BUILTIN_IMAGE_STYLES, INPUT_IMAGE_MODES, isInputImageMode, STUDIO_UPLOAD_NAME,
+} from "@/lib/image-styles";
+import { getFile } from "@/lib/storage";
 import { logUsage } from "@/lib/usage";
 import { referenceSourceWhere, userBrandScope, visibleOwnedWhere } from "@/lib/scope";
-import { findVisibleFolder, libraryView } from "@/lib/image-library";
+import { findVisibleFolder, findVisibleImage, libraryView } from "@/lib/image-library";
 
 export const maxDuration = 300;
 
@@ -18,7 +21,11 @@ export async function GET(req: Request) {
   return Response.json(view);
 }
 
-/** POST { prompt, styleId?, model?, aspectRatio?, referenceAssetIds?, folderId? } → nieuwe afbeelding. */
+/**
+ * POST { prompt, styleId?, model?, aspectRatio?, referenceAssetIds?, uploads?, parentId?, folderId? } → nieuwe afbeelding.
+ * `uploads` = eigen afbeeldingen (via /api/images/uploads) om te bewerken of als referentie;
+ * `parentId` = doorprompten op een beeld uit de beeldbank (wordt de te bewerken basis + geschiedenis).
+ */
 export async function POST(req: Request) {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -29,10 +36,30 @@ export async function POST(req: Request) {
     model?: string;
     aspectRatio?: string;
     referenceAssetIds?: string[];
+    uploads?: { name: string; mode?: string }[];
+    parentId?: string | null;
     folderId?: string | null;
   };
   const prompt = body.prompt?.trim();
   if (!prompt) return Response.json({ error: "Beschrijf wat je wilt zien" }, { status: 400 });
+
+  const parent = body.parentId ? await findVisibleImage(user, body.parentId) : null;
+  if (body.parentId && !parent) return Response.json({ error: "Afbeelding niet gevonden" }, { status: 404 });
+
+  const inputImages: { bytes: Uint8Array; name: string; instruction: string }[] = [];
+  if (parent) {
+    const bytes = await getFile(`images/${parent.url.split("/").pop()}`);
+    if (!bytes) return Response.json({ error: "Originele afbeelding niet meer beschikbaar" }, { status: 404 });
+    inputImages.push({ bytes, name: "previous version", instruction: INPUT_IMAGE_MODES.edit.instruction });
+  }
+  for (const upload of body.uploads ?? []) {
+    if (inputImages.length >= 4) break;
+    if (!STUDIO_UPLOAD_NAME.test(upload.name)) return Response.json({ error: "Ongeldige upload" }, { status: 400 });
+    const bytes = await getFile(`images/${upload.name}`);
+    if (!bytes) return Response.json({ error: "Upload niet gevonden, upload opnieuw" }, { status: 404 });
+    const mode = isInputImageMode(upload.mode) ? upload.mode : "reference";
+    inputImages.push({ bytes, name: "uploaded image", instruction: INPUT_IMAGE_MODES[mode].instruction });
+  }
 
   const style = body.styleId
     ? BUILTIN_IMAGE_STYLES.find((s) => s.id === body.styleId) ??
@@ -40,8 +67,10 @@ export async function POST(req: Request) {
     : null;
   const aspectRatio = ASPECT_RATIOS.includes(body.aspectRatio as never) ? body.aspectRatio : undefined;
 
-  const folder = body.folderId ? await findVisibleFolder(user, body.folderId) : null;
-  if (body.folderId && !folder) return Response.json({ error: "Map niet gevonden" }, { status: 404 });
+  // Doorprompten zonder expliciete map → nieuwe versie komt naast het origineel
+  const folderId = body.folderId === undefined ? parent?.folderId : body.folderId;
+  const folder = folderId ? await findVisibleFolder(user, folderId) : null;
+  if (folderId && !folder) return Response.json({ error: "Map niet gevonden" }, { status: 404 });
 
   // Referenties alleen uit kennisbronnen waar deze gebruiker bij mag
   const sources = await db.knowledgeSource.findMany({ where: await referenceSourceWhere(user), select: { id: true } });
@@ -53,8 +82,9 @@ export async function POST(req: Request) {
       aspectRatio,
       filename: "studio",
       // Lege bronlijst = geen filter in createImage, dus dan ook geen referenties toestaan
-      referenceAssetIds: sources.length ? body.referenceAssetIds?.slice(0, 4) : undefined,
+      referenceAssetIds: sources.length ? body.referenceAssetIds?.slice(0, 4 - inputImages.length) : undefined,
       sourceIds: sources.map((s) => s.id),
+      inputImages,
       // Stopknop in de studio breekt de request af → ook de (betaalde) generatie stoppen
       abortSignal: req.signal,
     });
@@ -63,6 +93,7 @@ export async function POST(req: Request) {
         userId: user.id,
         brandId: folder?.brandId ?? (await userBrandScope(user)),
         folderId: folder?.id ?? null,
+        parentId: parent?.id ?? null,
         prompt,
         style: style?.name ?? "",
         model: result.model,

@@ -20,6 +20,8 @@ export async function createImage(opts: {
   referenceAssetIds?: string[];
   /** Beperk referenties tot deze kennisbronnen (agent-scope). */
   sourceIds?: string[];
+  /** Losse invoerbeelden (uploads of een beeld uit de beeldbank), vóór de kennisbank-referenties. */
+  inputImages?: { bytes: Uint8Array; name: string; instruction: string }[];
   abortSignal?: AbortSignal;
 }) {
   const references = opts.referenceAssetIds?.length
@@ -35,6 +37,10 @@ export async function createImage(opts: {
 
   const images: Uint8Array[] = [];
   const rules: string[] = [];
+  for (const input of opts.inputImages ?? []) {
+    images.push(input.bytes);
+    rules.push(`Input image ${images.length} ("${input.name}") ${input.instruction}`);
+  }
   for (const reference of references) {
     const bytes = await getFile(reference.storageKey);
     if (!bytes) continue;
@@ -57,7 +63,7 @@ export async function createImage(opts: {
     url: `/api/files/images/${name}`,
     filename: name,
     model,
-    references: images.length,
+    references: images.length - (opts.inputImages?.length ?? 0),
     protectedReferences: references.filter((r) => r.editPolicy !== "free").length,
     usage,
   };

@@ -44,6 +44,29 @@ export const EDIT_POLICIES = {
 
 export type EditPolicy = keyof typeof EDIT_POLICIES;
 
+/** Wat de AI met een geüploade (of doorgeprompte) afbeelding doet. */
+export const INPUT_IMAGE_MODES = {
+  edit: {
+    label: "Bewerken",
+    instruction:
+      "is the base image to EDIT. Keep its composition, subjects, colors and details unchanged, " +
+      "except for what the prompt explicitly asks to change.",
+  },
+  reference: {
+    label: "Referentie",
+    instruction: "is a reference for subject, style or composition; use it as guidance for the new image.",
+  },
+} as const;
+
+export type InputImageMode = keyof typeof INPUT_IMAGE_MODES;
+
+export function isInputImageMode(value: unknown): value is InputImageMode {
+  return typeof value === "string" && value in INPUT_IMAGE_MODES;
+}
+
+/** Bestandsnaam van een studio-upload onder images/ (ook geldig voor /api/files/images/…). */
+export const STUDIO_UPLOAD_NAME = /^upload-[a-f0-9]{16,}\.(png|jpe?g|webp)$/i;
+
 export function isEditPolicy(value: unknown): value is EditPolicy {
   return typeof value === "string" && value in EDIT_POLICIES;
 }

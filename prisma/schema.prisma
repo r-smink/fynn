@@ -285,6 +285,10 @@ model ImageGeneration {
   brand       Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
   folderId    String?
   folder      ImageFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  // Beeld waarop doorgeprompt is → samen de prompt-geschiedenis van een beeld
+  parentId    String?
+  parent      ImageGeneration?  @relation("ImageIterations", fields: [parentId], references: [id], onDelete: SetNull)
+  children    ImageGeneration[] @relation("ImageIterations")
   prompt      String
   style       String   @default("") // naam van de gebruikte preset
   model       String
@@ -294,6 +298,7 @@ model ImageGeneration {
 
   @@index([userId, createdAt])
   @@index([folderId, createdAt])
+  @@index([parentId])
 }
 
 /** Map in de beeldbank; genest via parentId, gedeeld binnen een brand. */

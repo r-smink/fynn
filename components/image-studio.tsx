@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 import {
-  Check, ChevronRight, Download, Folder, FolderPlus, ImagePlus, Loader2, Pencil, Plus,
-  RotateCcw, Sparkles, Square, Trash2, X,
+  Check, ChevronRight, Download, Folder, FolderPlus, History, ImagePlus, Loader2, Pencil, Plus,
+  RotateCcw, Send, Sparkles, Square, Trash2, Upload, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ModelPicker, type Model } from "@/components/chat/model-picker";
 import {
-  ASPECT_RATIOS, BUILTIN_IMAGE_STYLES, EDIT_POLICIES, isEditPolicy, type ImageStylePreset,
+  ASPECT_RATIOS, BUILTIN_IMAGE_STYLES, EDIT_POLICIES, INPUT_IMAGE_MODES, isEditPolicy,
+  type ImageStylePreset, type InputImageMode,
 } from "@/lib/image-styles";
 import { cn } from "@/lib/utils";
 
@@ -27,8 +28,14 @@ type GeneratedImage = {
   aspectRatio: string;
   url: string;
   folderId: string | null;
+  parentId: string | null;
   createdAt: string;
 };
+
+type ImageThread = { history: GeneratedImage[]; variants: GeneratedImage[] };
+
+/** Eigen afbeelding in de composer; `name` is gezet zodra de upload klaar is. */
+type StudioUpload = { id: number; preview: string; name?: string; mode: InputImageMode };
 
 type FolderItem = {
   id: string;
@@ -75,9 +82,13 @@ export function ImageStudio({
   const [loadingFolder, setLoadingFolder] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [styleId, setStyleId] = useState<string | null>(null);
-  const [aspectRatio, setAspectRatio] = useState<string>("1:1");
+  const [aspectRatio, setAspectRatio] = useState<string>("16:9");
   const [model, setModel] = useState(defaultModel);
   const [references, setReferences] = useState<ReferenceAsset[]>([]);
+  const [uploads, setUploads] = useState<StudioUpload[]>([]);
+  const [dragOverComposer, setDragOverComposer] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const uploadSeq = useRef(0);
   const [jobs, setJobs] = useState<PendingJob[]>([]);
   const jobSeq = useRef(0);
   // Actuele map voor async callbacks (resultaat alleen tonen als je nog in dezelfde map zit)
@@ -88,6 +99,10 @@ export function ImageStudio({
   const [refOpen, setRefOpen] = useState(false);
   const [refAssets, setRefAssets] = useState<ReferenceAsset[] | null>(null);
   const [preview, setPreview] = useState<GeneratedImage | null>(null);
+  const previewId = useRef<string | null>(null);
+  const [thread, setThread] = useState<ImageThread | null>(null);
+  const [followUp, setFollowUp] = useState("");
+  const [iteration, setIteration] = useState<{ baseId: string; prompt: string; controller: AbortController } | null>(null);
   const [allFolders, setAllFolders] = useState<{ id: string; label: string }[] | null>(null);
   const [folderDialog, setFolderDialog] = useState<{ id?: string; name: string; brandId: string } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -113,7 +128,7 @@ export function ImageStudio({
 
   async function generate() {
     const text = prompt.trim();
-    if (!text) return;
+    if (!text || uploads.some((u) => !u.name)) return;
     const job: PendingJob = { id: ++jobSeq.current, folderId: library.folderId, controller: new AbortController() };
     setJobs((list) => [...list, job]);
     try {
@@ -124,12 +139,13 @@ export function ImageStudio({
         body: JSON.stringify({
           prompt: text, styleId, model, aspectRatio, folderId: job.folderId,
           referenceAssetIds: references.map((r) => r.id),
+          uploads: uploads.map(({ name, mode }) => ({ name, mode })),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Genereren mislukt");
       if (currentFolder.current === job.folderId) {
-        setLibrary((view) => ({ ...view, images: [{ ...data.image, createdAt: String(data.image.createdAt) }, ...view.images] }));
+        addToLibrary(data.image);
       } else {
         toast.success("Afbeelding klaar", { description: "Opgeslagen in de map waar je hem startte." });
       }
@@ -141,8 +157,99 @@ export function ImageStudio({
     }
   }
 
+  function addToLibrary(image: GeneratedImage) {
+    setLibrary((view) => ({ ...view, images: [{ ...image, createdAt: String(image.createdAt) }, ...view.images] }));
+  }
+
   function stopJobs(target?: PendingJob) {
     for (const job of target ? [target] : jobs) job.controller.abort();
+  }
+
+  async function addUploads(files: FileList | File[]) {
+    const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (!images.length) return;
+    const room = 4 - references.length - uploads.length;
+    if (images.length > room) toast.error("Maximaal 4 afbeeldingen per generatie");
+    await Promise.all(images.slice(0, Math.max(room, 0)).map(async (file, i) => {
+      // Eerste eigen afbeelding = bewerken, extra's = referentie (aan te passen per afbeelding)
+      const item: StudioUpload = {
+        id: ++uploadSeq.current,
+        preview: URL.createObjectURL(file),
+        mode: uploads.length + i === 0 ? "edit" : "reference",
+      };
+      setUploads((list) => [...list, item]);
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch("/api/images/uploads", { method: "POST", body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Uploaden mislukt");
+        setUploads((list) => list.map((u) => (u.id === item.id ? { ...u, name: data.name } : u)));
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Uploaden mislukt");
+        removeUpload(item);
+      }
+    }));
+  }
+
+  function removeUpload(item: StudioUpload) {
+    URL.revokeObjectURL(item.preview);
+    setUploads((list) => list.filter((u) => u.id !== item.id));
+  }
+
+  function toggleUploadMode(item: StudioUpload) {
+    setUploads((list) =>
+      list.map((u) => (u.id === item.id ? { ...u, mode: u.mode === "edit" ? "reference" : "edit" } : u)),
+    );
+  }
+
+  async function openImage(image: GeneratedImage) {
+    previewId.current = image.id;
+    setPreview(image);
+    setThread(null);
+    void loadAllFolders();
+    const res = await fetch(`/api/images/${image.id}`);
+    if (res.ok && previewId.current === image.id) setThread(await res.json());
+  }
+
+  function closeImage() {
+    previewId.current = null;
+    setPreview(null);
+  }
+
+  /** Doorprompten: nieuwe versie op basis van het geopende beeld, komt in dezelfde map. */
+  async function iterate() {
+    const base = preview;
+    const text = followUp.trim();
+    if (!base || !text || iteration) return;
+    const controller = new AbortController();
+    setIteration({ baseId: base.id, prompt: text, controller });
+    setFollowUp("");
+    try {
+      const res = await fetch("/api/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ prompt: text, model, aspectRatio: base.aspectRatio || undefined, parentId: base.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Genereren mislukt");
+      const image: GeneratedImage = { ...data.image, createdAt: String(data.image.createdAt) };
+      if (currentFolder.current === image.folderId) addToLibrary(image);
+      if (previewId.current === base.id) {
+        previewId.current = image.id;
+        setPreview(image);
+        setThread((t) => ({ history: [...(t?.history ?? [base]), image], variants: [] }));
+      } else {
+        toast.success("Nieuwe versie klaar", { description: "Opgeslagen naast het origineel." });
+      }
+    } catch (e) {
+      setFollowUp((current) => current || text);
+      if (controller.signal.aborted) toast("Genereren gestopt");
+      else toast.error(e instanceof Error ? e.message : "Genereren mislukt");
+    } finally {
+      setIteration(null);
+    }
   }
 
   async function openReferences() {
@@ -155,8 +262,8 @@ export function ImageStudio({
   function toggleReference(asset: ReferenceAsset) {
     if (references.some((r) => r.id === asset.id)) {
       setReferences(references.filter((r) => r.id !== asset.id));
-    } else if (references.length >= 4) {
-      toast.error("Maximaal 4 referenties");
+    } else if (references.length + uploads.length >= 4) {
+      toast.error("Maximaal 4 afbeeldingen per generatie");
     } else {
       setReferences([...references, asset]);
     }
@@ -190,7 +297,7 @@ export function ImageStudio({
     const res = await fetch(`/api/images/${image.id}`, { method: "DELETE" });
     if (!res.ok) return toast.error("Verwijderen mislukt");
     setLibrary((view) => ({ ...view, images: view.images.filter((i) => i.id !== image.id) }));
-    setPreview(null);
+    closeImage();
   }
 
   async function moveImage(imageId: string, folderId: string | null) {
@@ -208,7 +315,7 @@ export function ImageStudio({
         f.id === folderId ? { ...f, _count: { ...f._count, images: f._count.images + 1 } } : f,
       ),
     }));
-    setPreview(null);
+    closeImage();
     toast.success("Afbeelding verplaatst");
   }
 
@@ -256,7 +363,7 @@ export function ImageStudio({
     setPrompt(image.prompt);
     setStyleId(allStyles.find((s) => s.name === image.style)?.id ?? null);
     if (image.aspectRatio) setAspectRatio(image.aspectRatio);
-    setPreview(null);
+    closeImage();
   }
 
   function dropProps(folderId: string | null) {
@@ -302,10 +409,34 @@ export function ImageStudio({
         </div>
       </section>
 
-      <section className="space-y-3 rounded-xl border bg-card p-3 sm:p-4">
+      <section
+        className={cn(
+          "space-y-3 rounded-xl border bg-card p-3 sm:p-4",
+          dragOverComposer && "border-primary ring-1 ring-primary",
+        )}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          setDragOverComposer(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverComposer(false);
+        }}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return;
+          e.preventDefault();
+          setDragOverComposer(false);
+          void addUploads(e.dataTransfer.files);
+        }}
+      >
         <Textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
+          onPaste={(e) => {
+            if (!e.clipboardData.files.length) return;
+            e.preventDefault();
+            void addUploads(e.clipboardData.files);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
@@ -316,8 +447,35 @@ export function ImageStudio({
           className="min-h-24 resize-none border-0 p-1 shadow-none focus-visible:ring-0"
         />
 
-        {references.length > 0 && (
+        {(references.length > 0 || uploads.length > 0) && (
           <div className="flex flex-wrap gap-2">
+            {uploads.map((u) => (
+              <div key={u.id} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={u.preview} alt="Eigen afbeelding" className="h-16 w-16 rounded-md border object-cover" />
+                {!u.name && (
+                  <span className="absolute inset-0 flex items-center justify-center rounded-md bg-background/60">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </span>
+                )}
+                <button
+                  onClick={() => toggleUploadMode(u)}
+                  title="Klik om te wisselen tussen bewerken en referentie"
+                  className="absolute bottom-0.5 left-0.5"
+                >
+                  <Badge variant={u.mode === "edit" ? "default" : "secondary"} className="px-1 py-0 text-[10px]">
+                    {INPUT_IMAGE_MODES[u.mode].label}
+                  </Badge>
+                </button>
+                <button
+                  onClick={() => removeUpload(u)}
+                  className="absolute -top-1.5 -right-1.5 rounded-full bg-foreground p-0.5 text-background"
+                  aria-label="Afbeelding verwijderen"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
             {references.map((r) => (
               <div key={r.id} className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -340,8 +498,22 @@ export function ImageStudio({
         )}
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => fileInput.current?.click()} title="Of sleep/plak een afbeelding">
+            <Upload className="mr-1 h-4 w-4" /> Upload
+          </Button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files) void addUploads(e.target.files);
+              e.target.value = "";
+            }}
+          />
           <Button variant="outline" size="sm" onClick={openReferences}>
-            <ImagePlus className="mr-1 h-4 w-4" /> Referentie
+            <ImagePlus className="mr-1 h-4 w-4" /> Kennisbank
           </Button>
           <div className="flex flex-wrap rounded-md border p-0.5">
             {ASPECT_RATIOS.map((r) => (
@@ -371,7 +543,7 @@ export function ImageStudio({
                 <Square className="mr-1 h-4 w-4" /> Stop{jobs.length > 1 ? ` (${jobs.length})` : ""}
               </Button>
             )}
-            <Button onClick={generate} disabled={!prompt.trim()}>
+            <Button onClick={generate} disabled={!prompt.trim() || uploads.some((u) => !u.name)}>
               {jobs.length ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
               Genereer
             </Button>
@@ -477,7 +649,7 @@ export function ImageStudio({
             {library.images.map((image) => (
               <button
                 key={image.id}
-                onClick={() => { setPreview(image); void loadAllFolders(); }}
+                onClick={() => openImage(image)}
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.setData("application/x-fynn-image", image.id);
@@ -496,54 +668,135 @@ export function ImageStudio({
                 {image.style && (
                   <span className="absolute bottom-1 left-1 rounded bg-background/80 px-1.5 py-0.5 text-[10px]">{image.style}</span>
                 )}
+                {image.parentId && (
+                  <span className="absolute top-1 right-1 rounded bg-background/80 p-1" title="Doorgeprompte versie">
+                    <History className="h-3 w-3" />
+                  </span>
+                )}
               </button>
             ))}
           </div>
         )}
       </section>
 
-      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+      <Dialog open={!!preview} onOpenChange={(o) => !o && closeImage()}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle className="line-clamp-2 pr-6 text-base">{preview?.prompt}</DialogTitle>
           </DialogHeader>
           {preview && (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview.url} alt={preview.prompt} className="max-h-[60vh] w-full rounded-lg object-contain" />
-              <p className="text-xs text-muted-foreground">
-                {[preview.style, preview.aspectRatio, preview.model].filter(Boolean).join(" · ")}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <a href={preview.url} download className={buttonVariants({ variant: "outline", size: "sm" })}>
-                  <Download className="mr-1 h-4 w-4" /> Download
-                </a>
-                <Button variant="outline" size="sm" onClick={() => reuse(preview)}>
-                  <RotateCcw className="mr-1 h-4 w-4" /> Prompt hergebruiken
-                </Button>
-                <Select
-                  value={preview.folderId ?? ROOT}
-                  onValueChange={(v) => v && void moveImage(preview.id, v === ROOT ? null : v)}
-                >
-                  <SelectTrigger size="sm" className="w-auto min-w-40 text-xs">
-                    <SelectValue>
-                      {(v: string) => (v === ROOT
-                        ? "Map: Beeldbank"
-                        : `Map: ${allFolders?.find((f) => f.id === v)?.label ?? library.path.at(-1)?.name ?? "…"}`)}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ROOT}>Beeldbank (geen map)</SelectItem>
-                    {allFolders?.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="sm" className="ml-auto text-destructive" onClick={() => deleteImage(preview)}>
-                  <Trash2 className="mr-1 h-4 w-4" /> Verwijderen
-                </Button>
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px]">
+              <div className="min-w-0 space-y-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={preview.url} alt={preview.prompt} className="max-h-[60vh] w-full rounded-lg object-contain" />
+                <p className="text-xs text-muted-foreground">
+                  {[preview.style, preview.aspectRatio, preview.model].filter(Boolean).join(" · ")}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a href={preview.url} download className={buttonVariants({ variant: "outline", size: "sm" })}>
+                    <Download className="mr-1 h-4 w-4" /> Download
+                  </a>
+                  <Button variant="outline" size="sm" onClick={() => reuse(preview)}>
+                    <RotateCcw className="mr-1 h-4 w-4" /> Prompt hergebruiken
+                  </Button>
+                  <Select
+                    value={preview.folderId ?? ROOT}
+                    onValueChange={(v) => v && void moveImage(preview.id, v === ROOT ? null : v)}
+                  >
+                    <SelectTrigger size="sm" className="w-auto min-w-40 text-xs">
+                      <SelectValue>
+                        {(v: string) => (v === ROOT
+                          ? "Map: Beeldbank"
+                          : `Map: ${allFolders?.find((f) => f.id === v)?.label ?? library.path.at(-1)?.name ?? "…"}`)}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ROOT}>Beeldbank (geen map)</SelectItem>
+                      {allFolders?.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="sm" className="ml-auto text-destructive" onClick={() => deleteImage(preview)}>
+                    <Trash2 className="mr-1 h-4 w-4" /> Verwijderen
+                  </Button>
+                </div>
               </div>
-            </>
+
+              <div className="flex min-h-0 flex-col rounded-lg border md:max-h-[70vh]">
+                <p className="flex items-center gap-1.5 border-b px-3 py-2 text-xs font-semibold">
+                  <History className="h-3.5 w-3.5" /> Geschiedenis
+                </p>
+                <div className="flex-1 space-y-3 overflow-y-auto p-3">
+                  {!thread ? (
+                    <Loader2 className="mx-auto h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    thread.history.map((item) => (
+                      <div key={item.id} className="space-y-1.5">
+                        <p className="ml-6 rounded-lg bg-primary px-2.5 py-1.5 text-xs text-primary-foreground">{item.prompt}</p>
+                        <button
+                          onClick={() => item.id !== preview.id && openImage(item)}
+                          className={cn(
+                            "block w-28 overflow-hidden rounded-md border",
+                            item.id === preview.id ? "ring-2 ring-primary" : "opacity-80 hover:opacity-100",
+                          )}
+                          title={item.id === preview.id ? "Huidige versie" : "Open deze versie"}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={item.url} alt={item.prompt} className="w-full object-cover" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                  {iteration?.baseId === preview.id && (
+                    <div className="space-y-1.5">
+                      <p className="ml-6 rounded-lg bg-primary px-2.5 py-1.5 text-xs text-primary-foreground">{iteration.prompt}</p>
+                      <div className="flex h-16 w-28 items-center justify-center rounded-md border bg-muted/40">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    </div>
+                  )}
+                  {!!thread?.variants.length && (
+                    <div className="space-y-1.5 border-t pt-2">
+                      <p className="text-xs text-muted-foreground">Latere versies</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {thread.variants.map((v) => (
+                          <button key={v.id} onClick={() => openImage(v)} title={v.prompt} className="w-14 overflow-hidden rounded border">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={v.url} alt={v.prompt} className="aspect-square w-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1.5 border-t p-2">
+                  <Textarea
+                    value={followUp}
+                    onChange={(e) => setFollowUp(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        void iterate();
+                      }
+                    }}
+                    placeholder="Wat wil je aanpassen? bijv. maak de achtergrond blauw"
+                    className="min-h-16 resize-none text-sm"
+                  />
+                  <div className="flex justify-end">
+                    {iteration ? (
+                      <Button size="sm" variant="outline" onClick={() => iteration.controller.abort()}>
+                        <Square className="mr-1 h-3.5 w-3.5" /> Stop
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={iterate} disabled={!followUp.trim()}>
+                        <Send className="mr-1 h-3.5 w-3.5" /> Doorprompten
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

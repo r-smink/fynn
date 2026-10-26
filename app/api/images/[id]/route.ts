@@ -5,6 +5,27 @@ import { findVisibleFolder, findVisibleImage } from "@/lib/image-library";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+/** GET → prompt-geschiedenis: eerdere versies (oudste eerst, t/m dit beeld) + versies die hierop doorgaan. */
+export async function GET(_req: Request, ctx: Ctx) {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await ctx.params;
+  const image = await findVisibleImage(user, id);
+  if (!image) return Response.json({ error: "Niet gevonden" }, { status: 404 });
+
+  const history = [image];
+  for (let parentId = image.parentId; parentId && history.length < 50;) {
+    const parent = await findVisibleImage(user, parentId);
+    if (!parent) break;
+    history.unshift(parent);
+    parentId = parent.parentId;
+  }
+  const children = await db.imageGeneration.findMany({ where: { parentId: id }, orderBy: { createdAt: "asc" } });
+  const variants = [];
+  for (const child of children) if (await findVisibleImage(user, child.id)) variants.push(child);
+  return Response.json({ history, variants });
+}
+
 /** PATCH { folderId: string | null } — afbeelding naar een andere map verplaatsen. */
 export async function PATCH(req: Request, ctx: Ctx) {
   const user = await requireUser();
