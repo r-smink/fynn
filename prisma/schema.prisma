@@ -26,6 +26,7 @@ model User {
   imageStyles   ImageStyle[]
   images        ImageGeneration[]
   imageFolders  ImageFolder[]
+  imageAgents   ImageAgent[]
 }
 
 model Brand {
@@ -48,6 +49,7 @@ model Brand {
   tasks         Task[]
   imageStyles   ImageStyle[]
   imageFolders  ImageFolder[]
+  imageAgents   ImageAgent[]
   images        ImageGeneration[]
 }
 
@@ -122,6 +124,7 @@ model KnowledgeSource {
   assets     KnowledgeAsset[]
   repoFiles  RepoFile[]
   agents     Agent[]
+  imageAgents ImageAgent[]
 
   @@index([brandId])
 }
@@ -318,4 +321,25 @@ model ImageFolder {
   @@index([userId])
   @@index([brandId])
   @@index([parentId])
+}
+
+/**
+ * Beeld-agent in de beeldstudio: denkt mee vóór het genereren. Leest de meegestuurde beelden,
+ * doorzoekt de gekoppelde kennisbronnen en kiest zelf merk-referenties voor de uiteindelijke prompt.
+ */
+model ImageAgent {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandId      String?
+  brand        Brand?            @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  name         String
+  emoji        String            @default("🤖")
+  instructions String            @default("")
+  createdAt    DateTime          @default(now())
+  // Leeg = alle kennisbronnen waar de gebruiker bij mag
+  sources      KnowledgeSource[]
+
+  @@index([userId])
+  @@index([brandId])
 }

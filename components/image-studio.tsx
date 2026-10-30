@@ -58,8 +58,18 @@ type ReferenceAsset = {
   filename: string;
   caption: string;
   editPolicy: string;
-  source: { name: string };
+  source: { id: string; name: string };
 };
+
+export type ImageAgentItem = {
+  id: string;
+  name: string;
+  emoji: string;
+  instructions: string;
+  sources: { id: string; name: string }[];
+};
+
+type AgentForm = { id?: string; name: string; emoji: string; instructions: string; sourceIds: string[] };
 
 type PendingJob = { id: number; folderId: string | null; controller: AbortController };
 
@@ -70,14 +80,20 @@ const ROOT = "__root__";
 
 export function ImageStudio({
   customStyles: initialCustomStyles, initialLibrary, defaultModel, isAdmin, brands,
+  initialAgents, knowledgeSources,
 }: {
   customStyles: ImageStylePreset[];
   initialLibrary: LibraryState;
   defaultModel: string;
   isAdmin: boolean;
   brands: { id: string; name: string }[];
+  initialAgents: ImageAgentItem[];
+  knowledgeSources: { id: string; name: string }[];
 }) {
   const [customStyles, setCustomStyles] = useState(initialCustomStyles);
+  const [agents, setAgents] = useState(initialAgents);
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [agentForm, setAgentForm] = useState<AgentForm | null>(null);
   const [library, setLibrary] = useState(initialLibrary);
   const [loadingFolder, setLoadingFolder] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -98,6 +114,7 @@ export function ImageStudio({
   const [styleForm, setStyleForm] = useState({ name: "", emoji: "🎨", prompt: "" });
   const [refOpen, setRefOpen] = useState(false);
   const [refAssets, setRefAssets] = useState<ReferenceAsset[] | null>(null);
+  const [refFolder, setRefFolder] = useState<string | null>(null);
   const [preview, setPreview] = useState<GeneratedImage | null>(null);
   const previewId = useRef<string | null>(null);
   const [thread, setThread] = useState<ImageThread | null>(null);
@@ -109,6 +126,15 @@ export function ImageStudio({
 
   const allStyles = [...BUILTIN_IMAGE_STYLES, ...customStyles];
   const activeStyle = allStyles.find((s) => s.id === styleId);
+  const activeAgent = agents.find((a) => a.id === agentId);
+  // Referenties per kennisbank-map (bron); de API levert ze al op mapnaam gesorteerd aan
+  const refFolders = Array.from(
+    (refAssets ?? []).reduce((map, a) => {
+      const group = map.get(a.source.id) ?? { id: a.source.id, name: a.source.name, assets: [] as ReferenceAsset[] };
+      group.assets.push(a);
+      return map.set(a.source.id, group);
+    }, new Map<string, { id: string; name: string; assets: ReferenceAsset[] }>()).values(),
+  );
   const visibleJobs = jobs.filter((j) => j.folderId === library.folderId);
 
   async function openFolder(folderId: string | null) {
@@ -137,13 +163,14 @@ export function ImageStudio({
         headers: { "Content-Type": "application/json" },
         signal: job.controller.signal,
         body: JSON.stringify({
-          prompt: text, styleId, model, aspectRatio, folderId: job.folderId,
+          prompt: text, styleId, model, aspectRatio, folderId: job.folderId, agentId,
           referenceAssetIds: references.map((r) => r.id),
           uploads: uploads.map(({ name, mode }) => ({ name, mode })),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Genereren mislukt");
+      showAgentNotes(data);
       if (currentFolder.current === job.folderId) {
         addToLibrary(data.image);
       } else {
@@ -155,6 +182,41 @@ export function ImageStudio({
     } finally {
       setJobs((list) => list.filter((j) => j.id !== job.id));
     }
+  }
+
+  /** Laat zien wat de beeld-agent uit de kennisbank heeft gehaald. */
+  function showAgentNotes(data: { agentNotes?: string; agentPrompt?: string }) {
+    if (data.agentNotes || data.agentPrompt) {
+      toast(data.agentNotes || "Prompt uitgewerkt door de beeld-agent", {
+        description: data.agentPrompt?.slice(0, 300),
+      });
+    }
+  }
+
+  async function saveAgent() {
+    if (!agentForm?.name.trim()) return;
+    const { id, ...payload } = agentForm;
+    const res = await fetch(id ? `/api/image-agents/${id}` : "/api/image-agents", {
+      method: id ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return toast.error(data.error || "Opslaan mislukt");
+    const agent = data.agent as ImageAgentItem;
+    setAgents((list) =>
+      (id ? list.map((a) => (a.id === id ? agent : a)) : [...list, agent]).sort((a, b) => a.name.localeCompare(b.name)),
+    );
+    setAgentId(agent.id);
+    setAgentForm(null);
+  }
+
+  async function deleteAgent(agent: ImageAgentItem) {
+    if (!confirm(`Beeld-agent "${agent.name}" verwijderen?`)) return;
+    const res = await fetch(`/api/image-agents/${agent.id}`, { method: "DELETE" });
+    if (!res.ok) return toast.error("Verwijderen mislukt");
+    setAgents((list) => list.filter((a) => a.id !== agent.id));
+    if (agentId === agent.id) setAgentId(null);
   }
 
   function addToLibrary(image: GeneratedImage) {
@@ -230,10 +292,11 @@ export function ImageStudio({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ prompt: text, model, aspectRatio: base.aspectRatio || undefined, parentId: base.id }),
+        body: JSON.stringify({ prompt: text, model, aspectRatio: base.aspectRatio || undefined, parentId: base.id, agentId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Genereren mislukt");
+      showAgentNotes(data);
       const image: GeneratedImage = { ...data.image, createdAt: String(data.image.createdAt) };
       if (currentFolder.current === image.folderId) addToLibrary(image);
       if (previewId.current === base.id) {
@@ -409,6 +472,39 @@ export function ImageStudio({
         </div>
       </section>
 
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold">
+            Beeld-agent{" "}
+            <span className="font-normal text-muted-foreground">— werkt je prompt uit met de kennisbank en je beelden</span>
+          </h2>
+          <Button
+            variant="ghost" size="sm"
+            onClick={() => setAgentForm({ name: "", emoji: "🤖", instructions: "", sourceIds: [] })}
+          >
+            <Plus className="mr-1 h-4 w-4" /> Nieuwe agent
+          </Button>
+        </div>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-7">
+          <StyleTile emoji="✋" name="Geen agent" active={!agentId} onClick={() => setAgentId(null)} />
+          {agents.map((a) => (
+            <StyleTile
+              key={a.id}
+              emoji={a.emoji}
+              name={a.name}
+              title={[a.instructions, a.sources.length ? `Kennisbank: ${a.sources.map((s) => s.name).join(", ")}` : "Kennisbank: alles"]
+                .filter(Boolean).join("\n\n")}
+              active={agentId === a.id}
+              onClick={() => setAgentId(a.id)}
+              onEdit={() => setAgentForm({
+                id: a.id, name: a.name, emoji: a.emoji, instructions: a.instructions, sourceIds: a.sources.map((s) => s.id),
+              })}
+              onDelete={() => deleteAgent(a)}
+            />
+          ))}
+        </div>
+      </section>
+
       <section
         className={cn(
           "space-y-3 rounded-xl border bg-card p-3 sm:p-4",
@@ -549,11 +645,13 @@ export function ImageStudio({
             </Button>
           </div>
         </div>
-        {(activeStyle || library.path.length > 0) && (
+        {(activeAgent || activeStyle || library.path.length > 0) && (
           <p className="text-xs text-muted-foreground">
-            {activeStyle && <>Stijl: {activeStyle.emoji} {activeStyle.name}</>}
-            {activeStyle && library.path.length > 0 && " · "}
-            {library.path.length > 0 && <>Opslaan in: {library.path.map((p) => p.name).join(" / ")}</>}
+            {[
+              activeAgent && `Agent: ${activeAgent.emoji} ${activeAgent.name}`,
+              activeStyle && `Stijl: ${activeStyle.emoji} ${activeStyle.name}`,
+              library.path.length > 0 && `Opslaan in: ${library.path.map((p) => p.name).join(" / ")}`,
+            ].filter(Boolean).join(" · ")}
           </p>
         )}
       </section>
@@ -902,36 +1000,128 @@ export function ImageStudio({
               Nog geen afbeeldingen in de kennisbank. Voeg ze toe via een upload-bron.
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {refAssets.map((asset) => {
-                const selected = references.some((r) => r.id === asset.id);
-                return (
-                  <button
-                    key={asset.id}
-                    onClick={() => toggleReference(asset)}
-                    className={cn(
-                      "relative rounded-lg border p-1.5 text-left",
-                      selected && "border-primary ring-2 ring-primary",
-                    )}
-                    title={asset.caption || asset.filename}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/api/knowledge/assets/${asset.id}`}
-                      alt={asset.filename}
-                      className="aspect-square w-full rounded object-contain"
-                    />
-                    <span className="mt-1 block truncate text-xs">{asset.filename}</span>
-                    <PolicyBadge policy={asset.editPolicy} className="absolute top-2 left-2" />
-                    {selected && (
-                      <Check className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary p-0.5 text-primary-foreground" />
-                    )}
-                  </button>
-                );
-              })}
+            <div className="space-y-4">
+              {refFolders.length > 1 && (
+                <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Kennisbank-mappen">
+                  <FolderChip active={!refFolder} onClick={() => setRefFolder(null)}>
+                    Alle mappen ({refAssets.length})
+                  </FolderChip>
+                  {refFolders.map((f) => {
+                    const picked = f.assets.filter((a) => references.some((r) => r.id === a.id)).length;
+                    return (
+                      <FolderChip key={f.id} active={refFolder === f.id} onClick={() => setRefFolder(f.id)}>
+                        <Folder className="h-3.5 w-3.5" /> {f.name} ({f.assets.length}){picked > 0 && ` · ${picked} ✓`}
+                      </FolderChip>
+                    );
+                  })}
+                </div>
+              )}
+              {refFolders.filter((f) => !refFolder || f.id === refFolder).map((f) => (
+                <div key={f.id} className="space-y-2">
+                  <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+                    <Folder className="h-4 w-4 text-primary" /> {f.name}
+                    <span className="font-normal text-muted-foreground">({f.assets.length})</span>
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {f.assets.map((asset) => {
+                      const selected = references.some((r) => r.id === asset.id);
+                      return (
+                        <button
+                          key={asset.id}
+                          onClick={() => toggleReference(asset)}
+                          className={cn(
+                            "relative rounded-lg border p-1.5 text-left",
+                            selected && "border-primary ring-2 ring-primary",
+                          )}
+                          title={asset.caption || asset.filename}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`/api/knowledge/assets/${asset.id}`}
+                            alt={asset.filename}
+                            className="aspect-square w-full rounded object-contain"
+                          />
+                          <span className="mt-1 block truncate text-xs">{asset.filename}</span>
+                          <PolicyBadge policy={asset.editPolicy} className="absolute top-2 left-2" />
+                          {selected && (
+                            <Check className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary p-0.5 text-primary-foreground" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
           <Button onClick={() => setRefOpen(false)}>Klaar</Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!agentForm} onOpenChange={(o) => !o && setAgentForm(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{agentForm?.id ? "Beeld-agent bewerken" : "Nieuwe beeld-agent"}</DialogTitle>
+          </DialogHeader>
+          {agentForm && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Een beeld-agent bekijkt eerst je meegestuurde beelden, zoekt in de gekoppelde kennisbank naar huisstijl,
+                merk-info en beeldmateriaal, en schrijft daarmee de uiteindelijke prompt. Passende kennisbank-afbeeldingen
+                voegt hij zelf toe als referentie.
+              </p>
+              <div className="flex gap-2">
+                <div className="w-16 space-y-1">
+                  <Label>Icoon</Label>
+                  <Input value={agentForm.emoji} onChange={(e) => setAgentForm({ ...agentForm, emoji: e.target.value })} />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label>Naam</Label>
+                  <Input
+                    autoFocus
+                    value={agentForm.name}
+                    onChange={(e) => setAgentForm({ ...agentForm, name: e.target.value })}
+                    placeholder="bijv. Social-designer Fyndable"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Instructies</Label>
+                <Textarea
+                  value={agentForm.instructions}
+                  onChange={(e) => setAgentForm({ ...agentForm, instructions: e.target.value })}
+                  placeholder="bijv. Maak LinkedIn-visuals in onze huisstijl. Gebruik altijd de mascotte uit de kennisbank en laat ruimte voor tekst rechtsboven."
+                  className="min-h-24"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Kennisbank-mappen (leeg = alles waar je bij mag)</Label>
+                <div className="max-h-40 space-y-1 overflow-auto rounded border p-2">
+                  {knowledgeSources.map((s) => (
+                    <label key={s.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={agentForm.sourceIds.includes(s.id)}
+                        onChange={() => setAgentForm({
+                          ...agentForm,
+                          sourceIds: agentForm.sourceIds.includes(s.id)
+                            ? agentForm.sourceIds.filter((id) => id !== s.id)
+                            : [...agentForm.sourceIds, s.id],
+                        })}
+                      />
+                      {s.name}
+                    </label>
+                  ))}
+                  {!knowledgeSources.length && (
+                    <p className="text-xs text-muted-foreground">Nog geen kennisbronnen beschikbaar.</p>
+                  )}
+                </div>
+              </div>
+              <Button onClick={saveAgent} disabled={!agentForm.name.trim()} className="w-full">
+                Opslaan
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
@@ -939,13 +1129,14 @@ export function ImageStudio({
 }
 
 function StyleTile({
-  emoji, name, title, active, onClick, onDelete,
+  emoji, name, title, active, onClick, onEdit, onDelete,
 }: {
   emoji: string;
   name: string;
   title?: string;
   active: boolean;
   onClick: () => void;
+  onEdit?: () => void;
   onDelete?: () => void;
 }) {
   return (
@@ -970,7 +1161,32 @@ function StyleTile({
           <X className="h-3 w-3" />
         </button>
       )}
+      {onEdit && (
+        <button
+          onClick={onEdit}
+          className="absolute -top-1.5 -left-1.5 rounded-full bg-foreground p-0.5 text-background opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+          aria-label={`${name} bewerken`}
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+      )}
     </div>
+  );
+}
+
+function FolderChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent",
+        active && "border-primary bg-primary/10 font-medium",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

@@ -29,7 +29,7 @@ export function parseEnabledTools(agent: Agent): ToolGroup[] {
 }
 
 /** Brand context block injected into the system prompt. */
-function brandBlock(brand: Brand | null | undefined): string {
+export function brandBlock(brand: Brand | null | undefined): string {
   if (!brand) return "";
   let theme = "";
   try {

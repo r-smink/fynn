@@ -32,6 +32,10 @@ export const env = {
   get imageModel() {
     return process.env.IMAGE_MODEL || "google/gemini-2.5-flash-image";
   },
+  /** Denkt mee in de beeldstudio (beeld-agents): moet afbeeldingen kunnen lezen én tools kunnen aanroepen. */
+  get imageAgentModel() {
+    return process.env.IMAGE_AGENT_MODEL || process.env.VISION_MODEL || "google/gemini-2.5-flash";
+  },
   get visionModel() {
     return process.env.VISION_MODEL || "google/gemini-2.5-flash-lite";
   },
